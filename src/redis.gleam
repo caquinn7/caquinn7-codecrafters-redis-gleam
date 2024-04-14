@@ -11,8 +11,8 @@ pub fn main() {
   let assert Ok(_) =
     glisten.handler(fn(_conn) { #(Nil, None) }, fn(msg, state, conn) {
       io.debug(msg)
-      let assert Ok(_) =
-        glisten.send(conn, bytes_builder.from_string("+PONG\r\n"))
+      let response = bytes_builder.from_string("+PONG\r\n")
+      let assert Ok(_) = glisten.send(conn, response)
       actor.continue(state)
     })
     |> glisten.serve(6379)
