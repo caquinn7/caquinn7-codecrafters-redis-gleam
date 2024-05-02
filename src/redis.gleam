@@ -2,6 +2,7 @@ import cmd.{Echo, ParseErr}
 import gleam/bit_array
 import gleam/bytes_builder
 import gleam/erlang/process
+import gleam/int
 import gleam/io
 import gleam/option.{None}
 import gleam/otp/actor
@@ -21,10 +22,11 @@ pub fn main() {
       let assert Packet(msg_bits) = msg
       let assert Ok(msg_str) = bit_array.to_string(msg_bits)
       io.println(msg_str)
+      io.println(int.to_string(string.length(msg_str)))
       let response_text = case cmd.parse(msg_str) {
         Ok(Echo(s)) -> s
         Error(ParseErr(_, err)) -> {
-          io.debug(err)
+          io.println(err)
           ""
         }
       }
