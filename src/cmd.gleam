@@ -1,10 +1,10 @@
 import gleam/list
 import gleam/result
 import gleam/string
-import resp.{Array, BulkStr}
+import resp.{type RespType, Array, BulkStr}
 
 pub type Command {
-  Echo(String)
+  Echo(RespType)
 }
 
 pub type ParseErr {
@@ -27,20 +27,21 @@ pub fn parse(input: String) -> Result(Command, ParseErr) {
   })
 
   let assert Array(bulkstrs) = array
-  let strs =
-    list.map(bulkstrs, fn(b) {
-      let assert BulkStr(s) = b
-      s
-    })
+  // let strs =
+  //   list.map(bulkstrs, fn(b) {
+  //     let assert BulkStr(s) = b
+  //     s
+  //   })
 
-  let assert Ok(cmd_str) = list.first(strs)
+  let assert Ok(BulkStr(cmd_str)) = list.first(bulkstrs)
 
   case string.lowercase(cmd_str) {
     "echo" ->
-      case list.rest(strs) {
+      case list.rest(bulkstrs) {
         Ok([s]) | Ok([s, ..]) -> Ok(Echo(s))
-        _ -> Ok(Echo(""))
+        _ -> Ok(Echo(BulkStr("")))
       }
     _ -> Error(ParseErr(input, "Did not find a valid command"))
   }
+  // todo
 }

@@ -29,7 +29,7 @@ pub fn parse_echo_test() {
     Array([BulkStr("echo"), BulkStr("hey")])
     |> resp.to_string
   input
-  |> test_ok(Echo("hey"))
+  |> test_ok(Echo(BulkStr("hey")))
 }
 
 pub fn parse_echo_uppercase_test() {
@@ -37,7 +37,7 @@ pub fn parse_echo_uppercase_test() {
     Array([BulkStr("ECHO"), BulkStr("hey")])
     |> resp.to_string
   input
-  |> test_ok(Echo("hey"))
+  |> test_ok(Echo(BulkStr("hey")))
 }
 
 pub fn parse_echo_multiple_args_test() {
@@ -45,7 +45,7 @@ pub fn parse_echo_multiple_args_test() {
     Array([BulkStr("echo"), BulkStr("hey"), BulkStr("ignore this")])
     |> resp.to_string
   input
-  |> test_ok(Echo("hey"))
+  |> test_ok(Echo(BulkStr("hey")))
 }
 
 pub fn parse_echo_no_args_test() {
@@ -53,7 +53,7 @@ pub fn parse_echo_no_args_test() {
     Array([BulkStr("echo")])
     |> resp.to_string
   input
-  |> test_ok(Echo(""))
+  |> test_ok(Echo(BulkStr("")))
 }
 
 pub fn parse_invalid_cmd_test() {
