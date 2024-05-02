@@ -20,7 +20,7 @@ pub fn main() {
     glisten.handler(fn(_conn) { #(Nil, None) }, fn(msg, state, conn) {
       let assert Packet(msg_bits) = msg
       let assert Ok(msg_str) = bit_array.to_string(msg_bits)
-      io.println(msg_str)
+      // io.println(msg_str)
       let response_text = case cmd.parse(msg_str) {
         Ok(Echo(s)) -> s
         Error(ParseErr(_, err)) -> {
