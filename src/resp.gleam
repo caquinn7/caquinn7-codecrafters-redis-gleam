@@ -9,15 +9,20 @@ const dollar_sign = "$"
 
 const asterisk = "*"
 
+const plus = "+"
+
 pub type RespType {
   // *<number-of-elements>\r\n<element-1>...<element-n>
   Array(List(RespType))
-  // $<length>\r\n<data>\r\n 
+  // $<length>\r\n<string>\r\n 
   BulkStr(String)
+  // +<string>\r\n
+  SimpleStr(String)
 }
 
 pub fn to_string(t: RespType) {
   case t {
+    SimpleStr(str) -> plus <> str <> crlf
     BulkStr(str) ->
       dollar_sign <> int.to_string(string.length(str)) <> crlf <> str <> crlf
     Array(elements) -> {
@@ -37,6 +42,7 @@ pub fn parse_type(chars: List(String)) -> Result(RespType, String) {
   let rest = list.drop(chars, 1)
   case type_symbol {
     s if s == asterisk -> parse_array(rest)
+    // s if s == plus -> parse_simplestr(rest)
     s if s == dollar_sign -> parse_bulkstr(rest)
     _ -> Error("Could not parse type symbol")
   }
