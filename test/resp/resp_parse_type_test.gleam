@@ -1,7 +1,7 @@
 import gleam/string
 import gleeunit
 import gleeunit/should
-import resp.{Array, BulkStr}
+import resp.{Array, BulkStr, SimpleStr}
 
 pub fn main() {
   gleeunit.main()
@@ -23,6 +23,19 @@ pub fn parse_type_no_type_symbol_test() {
 }
 
 //
+
+// pub fn parse_type_simplestr_test() {
+//   "+OK\r\n"
+//   |> test_ok(SimpleStr("OK"))
+// }
+
+// pub fn parse_type_simplestr_has_carriage_return() {
+//   todo
+// }
+
+// pub fn parse_type_simplestr_has_newline_test() {
+//   todo
+// }
 
 pub fn parse_type_bulkstr_test() {
   "$5\r\nhello\r\n"
@@ -105,6 +118,11 @@ pub fn parse_type_array_nested_test() {
   "*2\r\n*1\r\n$5\r\nhello\r\n*1\r\n$5\r\nworld\r\n"
   |> test_ok(Array([Array([BulkStr("hello")]), Array([BulkStr("world")])]))
 }
+
+// pub fn parse_type_array_mixed_types() {
+//   "*2\r\n$5\r\nhello\r\n+world\r\n"
+//   |> test_ok(Array([BulkStr("hello"), SimpleStr("world")]))
+// }
 
 pub fn parse_type_array_no_length_test() {
   "*"
