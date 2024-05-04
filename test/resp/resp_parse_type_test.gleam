@@ -24,18 +24,64 @@ pub fn parse_type_no_type_symbol_test() {
 
 //
 
-// pub fn parse_type_simplestr_test() {
-//   "+OK\r\n"
-//   |> test_ok(SimpleStr("OK"))
-// }
+pub fn parse_type_simplestr_test() {
+  "+OK\r\n"
+  |> test_ok(SimpleStr("OK"))
+}
 
-// pub fn parse_type_simplestr_has_carriage_return() {
-//   todo
-// }
+pub fn parse_type_simplestr_empty_test() {
+  "+\r\n"
+  |> test_ok(SimpleStr(""))
+}
 
-// pub fn parse_type_simplestr_has_newline_test() {
-//   todo
-// }
+pub fn parse_type_simplestr_has_carriage_return_test() {
+  "+O\rK\r\n"
+  |> test_err(
+    "Simple strings cannot contain carriage return or line feed characters",
+  )
+}
+
+pub fn parse_type_simplestr_starts_with_carriage_return_test() {
+  "+\rOK\r\n"
+  |> test_err(
+    "Simple strings cannot contain carriage return or line feed characters",
+  )
+}
+
+pub fn parse_type_simplestr_ends_with_carriage_return_test() {
+  "+OK\r\r\n"
+  |> test_err(
+    "Simple strings cannot contain carriage return or line feed characters",
+  )
+}
+
+pub fn parse_type_simplestr_has_newline_test() {
+  "+O\nK\r\n"
+  |> test_err(
+    "Simple strings cannot contain carriage return or line feed characters",
+  )
+}
+
+pub fn parse_type_simplestr_starts_with_newline_test() {
+  "+\nOK\r\n"
+  |> test_err(
+    "Simple strings cannot contain carriage return or line feed characters",
+  )
+}
+
+pub fn parse_type_simplestr_ends_with_newline_test() {
+  "+OK\n\r\n"
+  |> test_err(
+    "Simple strings cannot contain carriage return or line feed characters",
+  )
+}
+
+pub fn parse_type_simplestr_unterminated_test() {
+  "+OK"
+  |> test_err("Unterminated simple string")
+}
+
+//
 
 pub fn parse_type_bulkstr_test() {
   "$5\r\nhello\r\n"
@@ -102,11 +148,21 @@ pub fn parse_type_bulkstr_content_greater_than_len() {
   |> test_err("Could not parse bulk string of length " <> "4")
 }
 
+pub fn parse_type_bulkstr_unterminated_test() {
+  "$4\r\nhello"
+  |> test_err("Unterminated bulk string")
+}
+
 //
 
-pub fn parse_type_array_test() {
+pub fn parse_type_array_bulkstr_test() {
   "*2\r\n$5\r\nhello\r\n$5\r\nworld\r\n"
   |> test_ok(Array([BulkStr("hello"), BulkStr("world")]))
+}
+
+pub fn parse_type_array_simplestr_test() {
+  "*2\r\n+alright\r\n+ok\r\n"
+  |> test_ok(Array([SimpleStr("alright"), SimpleStr("ok")]))
 }
 
 pub fn parse_type_array_empty_test() {
@@ -119,10 +175,10 @@ pub fn parse_type_array_nested_test() {
   |> test_ok(Array([Array([BulkStr("hello")]), Array([BulkStr("world")])]))
 }
 
-// pub fn parse_type_array_mixed_types() {
-//   "*2\r\n$5\r\nhello\r\n+world\r\n"
-//   |> test_ok(Array([BulkStr("hello"), SimpleStr("world")]))
-// }
+pub fn parse_type_array_mixed_types() {
+  "*2\r\n+world\r\n$5\r\nhello\r\n"
+  |> test_ok(Array([SimpleStr("world"), BulkStr("hello")]))
+}
 
 pub fn parse_type_array_no_length_test() {
   "*"

@@ -20,13 +20,13 @@ pub fn parse_not_array_test() {
   |> test_err(ParseErr(input, "Input should be an array of bulk strings"))
 }
 
-// pub fn parse_element_not_bulkstr_test() {
-//   let input =
-//     SimpleStr("hi")
-//     |> resp.to_string
-//   input
-//   |> test_err(ParseErr(input, "Input should be an array of bulk strings"))
-// }
+pub fn parse_element_not_bulkstr_test() {
+  let input =
+    Array([BulkStr("hi"), SimpleStr("hi")])
+    |> resp.to_string
+  input
+  |> test_err(ParseErr(input, "Input should be an array of bulk strings"))
+}
 
 pub fn parse_ping_test() {
   let input =

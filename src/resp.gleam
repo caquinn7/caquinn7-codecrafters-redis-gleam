@@ -42,7 +42,7 @@ pub fn parse_type(chars: List(String)) -> Result(RespType, String) {
   let rest = list.drop(chars, 1)
   case type_symbol {
     s if s == asterisk -> parse_array(rest)
-    // s if s == plus -> parse_simplestr(rest)
+    s if s == plus -> parse_simplestr(rest)
     s if s == dollar_sign -> parse_bulkstr(rest)
     _ -> Error("Could not parse type symbol")
   }
@@ -116,5 +116,29 @@ fn parse_bulkstr(chars: List(String)) -> Result(RespType, String) {
   case terminator {
     Ok(s) if s == crlf -> Ok(BulkStr(content))
     _ -> Error("Unterminated bulk string")
+  }
+}
+
+fn parse_simplestr(chars: List(String)) -> Result(RespType, String) {
+  let content_chars = list.take_while(chars, fn(c) { c != crlf })
+
+  let is_invalid_char = fn(c) { c == "\r" || c == "\n" }
+  let has_invalid_chars = case list.any(content_chars, is_invalid_char) {
+    False -> Ok(Nil)
+    True ->
+      Error(
+        "Simple strings cannot contain carriage return or line feed characters",
+      )
+  }
+  use _ <- result.try(has_invalid_chars)
+
+  let terminator =
+    chars
+    |> list.drop(list.length(content_chars))
+    |> list.first
+
+  case terminator {
+    Ok(s) if s == crlf -> Ok(SimpleStr(string.join(content_chars, "")))
+    _ -> Error("Unterminated simple string")
   }
 }
