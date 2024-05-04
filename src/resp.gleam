@@ -48,20 +48,6 @@ pub fn parse_type(chars: List(String)) -> Result(RespType, String) {
   }
 }
 
-pub fn is_bulkstr_array(resp_value: RespType) {
-  case resp_value {
-    Array(elements) -> {
-      !list.any(elements, fn(element) {
-        case element {
-          BulkStr(_) -> False
-          _ -> True
-        }
-      })
-    }
-    _ -> False
-  }
-}
-
 fn parse_array(chars: List(String)) -> Result(RespType, String) {
   let digits = list.take_while(chars, fn(c) { c != crlf })
   use len <- result.try(result.replace_error(

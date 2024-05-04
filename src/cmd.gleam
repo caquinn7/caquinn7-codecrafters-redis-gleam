@@ -1,3 +1,4 @@
+import gleam/bool
 import gleam/list
 import gleam/result
 import gleam/string
@@ -17,22 +18,34 @@ pub fn parse(input: String) -> Result(Command, ParseErr) {
   use resp_value <- result.try(
     result.map_error(resp.parse_type(chars), fn(err) { ParseErr(input, err) }),
   )
-  use array <- result.try(case resp_value {
-    Array(elements) ->
-      case resp.is_bulkstr_array(Array(elements)) {
-        True -> Ok(Array(elements))
-        False ->
-          Error(ParseErr(input, "Input should be an array of bulk strings"))
+
+  let is_array = case resp_value {
+    Array(_) -> False
+    _ -> True
+  }
+  use <- bool.guard(
+    is_array,
+    Error(ParseErr(input, "Input should be an array of bulk strings")),
+  )
+
+  let assert Array(resp_values) = resp_value
+  let all_bulkstrs =
+    list.all(resp_values, fn(v) {
+      case v {
+        BulkStr(_) -> True
+        _ -> False
       }
-    _ -> Error(ParseErr(input, "Input should be an array of bulk strings"))
-  })
+    })
 
-  let assert Array(bulkstrs) = array
-  let assert Ok(BulkStr(cmd_str)) = list.first(bulkstrs)
+  use <- bool.guard(
+    !all_bulkstrs,
+    Error(ParseErr(input, "Input should be an array of bulk strings")),
+  )
 
+  let assert Ok(BulkStr(cmd_str)) = list.first(resp_values)
   case string.uppercase(cmd_str) {
     "ECHO" ->
-      case list.rest(bulkstrs) {
+      case list.rest(resp_values) {
         Ok([s]) | Ok([s, ..]) -> Ok(Echo(s))
         _ -> Ok(Echo(BulkStr("")))
       }

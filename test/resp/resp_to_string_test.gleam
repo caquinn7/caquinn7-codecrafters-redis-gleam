@@ -11,6 +11,11 @@ pub fn to_string_simplestr_test() {
   |> test_ok("+OK\r\n")
 }
 
+pub fn to_string_simplestr_empty_test() {
+  SimpleStr("")
+  |> test_ok("+\r\n")
+}
+
 pub fn to_string_bulkstr_test() {
   BulkStr("hello")
   |> test_ok("$5\r\nhello\r\n")
