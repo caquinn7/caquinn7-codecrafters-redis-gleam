@@ -6,8 +6,10 @@ import gleam/io
 import gleam/option.{None}
 import gleam/otp/actor
 import glisten.{Packet}
-import resp.{SimpleStr}
+import resp.{SimpleErr, SimpleStr}
 
+// ./spawn_redis_server.sh
+// nc -v 127.0.0.1 6379
 pub fn main() {
   io.println("Logs from your program will appear here!")
 
@@ -20,9 +22,9 @@ pub fn main() {
       let response_text = case cmd.parse(msg_str) {
         Ok(Ping) -> resp.to_string(SimpleStr("PONG"))
         Ok(Echo(bulkstr)) -> resp.to_string(bulkstr)
-        Error(ParseErr(_, err)) -> {
+        Error(ParseErr(err)) -> {
           io.println(err)
-          ""
+          resp.to_string(SimpleErr(err))
         }
       }
 

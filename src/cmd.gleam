@@ -10,13 +10,13 @@ pub type Command {
 }
 
 pub type ParseErr {
-  ParseErr(input: String, err: String)
+  ParseErr(err: String)
 }
 
 pub fn parse(input: String) -> Result(Command, ParseErr) {
   let chars = string.to_graphemes(input)
   use resp_value <- result.try(
-    result.map_error(resp.parse_type(chars), fn(err) { ParseErr(input, err) }),
+    result.map_error(resp.parse_type(chars), fn(err) { ParseErr(err) }),
   )
 
   let is_array = case resp_value {
@@ -25,7 +25,7 @@ pub fn parse(input: String) -> Result(Command, ParseErr) {
   }
   use <- bool.guard(
     is_array,
-    Error(ParseErr(input, "Input should be an array of bulk strings")),
+    Error(ParseErr("Input should be an array of bulk strings")),
   )
 
   let assert Array(resp_values) = resp_value
@@ -39,7 +39,7 @@ pub fn parse(input: String) -> Result(Command, ParseErr) {
 
   use <- bool.guard(
     !all_bulkstrs,
-    Error(ParseErr(input, "Input should be an array of bulk strings")),
+    Error(ParseErr("Input should be an array of bulk strings")),
   )
 
   let assert Ok(BulkStr(cmd_str)) = list.first(resp_values)
@@ -50,6 +50,6 @@ pub fn parse(input: String) -> Result(Command, ParseErr) {
         _ -> Ok(Echo(BulkStr("")))
       }
     "PING" -> Ok(Ping)
-    _ -> Error(ParseErr(input, "Did not find a valid command"))
+    _ -> Error(ParseErr("Did not find a valid command"))
   }
 }

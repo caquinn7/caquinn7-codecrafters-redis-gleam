@@ -9,7 +9,7 @@ pub fn main() {
 
 pub fn parse_empty_input_test() {
   ""
-  |> test_err(ParseErr("", "Input was empty"))
+  |> test_err(ParseErr("Input was empty"))
 }
 
 pub fn parse_not_array_test() {
@@ -17,7 +17,7 @@ pub fn parse_not_array_test() {
     BulkStr("hi")
     |> resp.to_string
   input
-  |> test_err(ParseErr(input, "Input should be an array of bulk strings"))
+  |> test_err(ParseErr("Input should be an array of bulk strings"))
 }
 
 pub fn parse_element_not_bulkstr_test() {
@@ -25,7 +25,7 @@ pub fn parse_element_not_bulkstr_test() {
     Array([BulkStr("hi"), SimpleStr("hi")])
     |> resp.to_string
   input
-  |> test_err(ParseErr(input, "Input should be an array of bulk strings"))
+  |> test_err(ParseErr("Input should be an array of bulk strings"))
 }
 
 pub fn parse_ping_test() {
@@ -73,7 +73,7 @@ pub fn parse_invalid_cmd_test() {
     Array([BulkStr("blah")])
     |> resp.to_string()
   input
-  |> test_err(ParseErr(input, "Did not find a valid command"))
+  |> test_err(ParseErr("Did not find a valid command"))
 }
 
 fn test_ok(input, expected) {

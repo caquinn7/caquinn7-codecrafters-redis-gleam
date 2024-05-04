@@ -11,13 +11,17 @@ const asterisk = "*"
 
 const plus = "+"
 
+const minus = "-"
+
 pub type RespType {
-  // *<number-of-elements>\r\n<element-1>...<element-n>
-  Array(List(RespType))
-  // $<length>\r\n<string>\r\n 
-  BulkStr(String)
   // +<string>\r\n
   SimpleStr(String)
+  // $<length>\r\n<string>\r\n 
+  BulkStr(String)
+  // -Error message\r\n
+  SimpleErr(String)
+  // *<number-of-elements>\r\n<element-1>...<element-n>
+  Array(List(RespType))
 }
 
 pub fn to_string(t: RespType) {
@@ -25,6 +29,7 @@ pub fn to_string(t: RespType) {
     SimpleStr(str) -> plus <> str <> crlf
     BulkStr(str) ->
       dollar_sign <> int.to_string(string.length(str)) <> crlf <> str <> crlf
+    SimpleErr(str) -> minus <> str <> crlf
     Array(elements) -> {
       asterisk
       <> int.to_string(list.length(elements))

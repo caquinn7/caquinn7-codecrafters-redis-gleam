@@ -1,6 +1,6 @@
 import gleeunit
 import gleeunit/should
-import resp.{Array, BulkStr, SimpleStr}
+import resp.{Array, BulkStr, SimpleErr, SimpleStr}
 
 pub fn main() {
   gleeunit.main()
@@ -16,6 +16,8 @@ pub fn to_string_simplestr_empty_test() {
   |> test_ok("+\r\n")
 }
 
+//
+
 pub fn to_string_bulkstr_test() {
   BulkStr("hello")
   |> test_ok("$5\r\nhello\r\n")
@@ -25,6 +27,15 @@ pub fn to_string_bulkstr_empty_test() {
   BulkStr("")
   |> test_ok("$0\r\n\r\n")
 }
+
+//
+
+pub fn to_string_simpleerr_test() {
+  SimpleErr("error")
+  |> test_ok("-error\r\n")
+}
+
+//
 
 pub fn to_string_array_test() {
   Array([BulkStr("hello"), BulkStr("world")])
