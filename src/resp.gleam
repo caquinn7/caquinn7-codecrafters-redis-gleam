@@ -1,5 +1,7 @@
+import gleam/bool
 import gleam/int
 import gleam/list
+import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
 
@@ -16,8 +18,8 @@ const minus = "-"
 pub type RespType {
   // +<string>\r\n
   SimpleStr(String)
-  // $<length>\r\n<string>\r\n 
-  BulkStr(String)
+  // $<length>\r\n<string>\r\n OR $-1\r\n (the null bulk string)
+  BulkStr(Option(String))
   // -Error message\r\n
   SimpleErr(String)
   // *<number-of-elements>\r\n<element-1>...<element-n>
@@ -27,8 +29,9 @@ pub type RespType {
 pub fn to_string(t: RespType) {
   case t {
     SimpleStr(str) -> plus <> str <> crlf
-    BulkStr(str) ->
+    BulkStr(Some(str)) ->
       dollar_sign <> int.to_string(string.length(str)) <> crlf <> str <> crlf
+    BulkStr(None) -> dollar_sign <> "-1" <> crlf
     SimpleErr(str) -> minus <> str <> crlf
     Array(elements) -> {
       asterisk
@@ -60,8 +63,8 @@ fn parse_array(chars: List(String)) -> Result(RespType, String) {
     "Could not parse length of array",
   ))
   let rest = list.drop(chars, list.length(digits) + 1)
-  use elements <- result.map(parse_array_elements(rest, len, []))
-  Array(list.reverse(elements))
+  let parsed_elements = parse_array_elements(rest, len, [])
+  result.map(parsed_elements, fn(elements) { Array(list.reverse(elements)) })
 }
 
 fn parse_array_elements(
@@ -90,6 +93,14 @@ fn parse_bulkstr(chars: List(String)) -> Result(RespType, String) {
     "Could not parse length of bulk string",
   ))
 
+  use <- bool.lazy_guard(when: len == -1, return: fn() {
+    let remaining_chars = list.drop(chars, list.length(digits))
+    case list.first(remaining_chars) {
+      Ok(s) if s == crlf -> Ok(BulkStr(None))
+      _ -> Error("Unterminated bulk string")
+    }
+  })
+
   let remaining_chars = list.drop(chars, list.length(digits) + 1)
   let content_chars = list.take(remaining_chars, len)
 
@@ -105,7 +116,7 @@ fn parse_bulkstr(chars: List(String)) -> Result(RespType, String) {
     |> list.first
 
   case terminator {
-    Ok(s) if s == crlf -> Ok(BulkStr(content))
+    Ok(s) if s == crlf -> Ok(BulkStr(Some(content)))
     _ -> Error("Unterminated bulk string")
   }
 }

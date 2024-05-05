@@ -1,3 +1,4 @@
+import gleam/option.{None, Some}
 import gleam/string
 import gleeunit
 import gleeunit/should
@@ -85,47 +86,47 @@ pub fn parse_type_simplestr_unterminated_test() {
 
 pub fn parse_type_bulkstr_test() {
   "$5\r\nhello\r\n"
-  |> test_ok(BulkStr("hello"))
+  |> test_ok(BulkStr(Some("hello")))
 }
 
 pub fn parse_type_bulkstr_empty_test() {
   "$0\r\n\r\n"
-  |> test_ok(BulkStr(""))
+  |> test_ok(BulkStr(Some("")))
 }
 
 pub fn parse_type_bulkstr_with_double_digit_len_test() {
   "$10\r\nhelloworld\r\n"
-  |> test_ok(BulkStr("helloworld"))
+  |> test_ok(BulkStr(Some("helloworld")))
 }
 
 pub fn parse_type_bulkstr_with_newline_test() {
   "$11\r\nhello\nworld\r\n"
-  |> test_ok(BulkStr("hello\nworld"))
+  |> test_ok(BulkStr(Some("hello\nworld")))
 }
 
 pub fn parse_type_bulkstr_with_crlf_test() {
   "$11\r\nhello\r\nworld\r\n"
-  |> test_ok(BulkStr("hello\r\nworld"))
+  |> test_ok(BulkStr(Some("hello\r\nworld")))
 }
 
 pub fn parse_type_bulkstr_starting_with_crlf_test() {
   "$11\r\n\r\nhelloworld\r\n"
-  |> test_ok(BulkStr("\r\nhelloworld"))
+  |> test_ok(BulkStr(Some("\r\nhelloworld")))
 }
 
 pub fn parse_type_bulkstr_ending_with_crlf_test() {
   "$11\r\nhelloworld\r\n\r\n"
-  |> test_ok(BulkStr("helloworld\r\n"))
+  |> test_ok(BulkStr(Some("helloworld\r\n")))
 }
 
 pub fn parse_type_bulkstr_with_some_numbers_test() {
   "$6\r\n0h3ll0\r\n"
-  |> test_ok(BulkStr("0h3ll0"))
+  |> test_ok(BulkStr(Some("0h3ll0")))
 }
 
 pub fn parse_type_bulkstr_with_all_numbers_test() {
   "$3\r\n123\r\n"
-  |> test_ok(BulkStr("123"))
+  |> test_ok(BulkStr(Some("123")))
 }
 
 pub fn parse_type_bulkstr_no_length_test() {
@@ -153,11 +154,21 @@ pub fn parse_type_bulkstr_unterminated_test() {
   |> test_err("Unterminated bulk string")
 }
 
+pub fn parse_type_bulkstr_null_test() {
+  "$-1\r\n"
+  |> test_ok(BulkStr(None))
+}
+
+pub fn parse_type_bulkstr_null_unterminated_test() {
+  "$-1"
+  |> test_err("Unterminated bulk string")
+}
+
 //
 
 pub fn parse_type_array_bulkstr_test() {
   "*2\r\n$5\r\nhello\r\n$5\r\nworld\r\n"
-  |> test_ok(Array([BulkStr("hello"), BulkStr("world")]))
+  |> test_ok(Array([BulkStr(Some("hello")), BulkStr(Some("world"))]))
 }
 
 pub fn parse_type_array_simplestr_test() {
@@ -172,12 +183,14 @@ pub fn parse_type_array_empty_test() {
 
 pub fn parse_type_array_nested_test() {
   "*2\r\n*1\r\n$5\r\nhello\r\n*1\r\n$5\r\nworld\r\n"
-  |> test_ok(Array([Array([BulkStr("hello")]), Array([BulkStr("world")])]))
+  |> test_ok(
+    Array([Array([BulkStr(Some("hello"))]), Array([BulkStr(Some("world"))])]),
+  )
 }
 
 pub fn parse_type_array_mixed_types() {
   "*2\r\n+world\r\n$5\r\nhello\r\n"
-  |> test_ok(Array([SimpleStr("world"), BulkStr("hello")]))
+  |> test_ok(Array([SimpleStr("world"), BulkStr(Some("hello"))]))
 }
 
 pub fn parse_type_array_no_length_test() {

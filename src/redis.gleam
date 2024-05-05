@@ -16,17 +16,17 @@ pub fn main() {
   let assert Ok(_) =
     glisten.handler(fn(_conn) { #(Nil, None) }, fn(msg, state, conn) {
       let assert Packet(msg_bits) = msg
-      let assert Ok(msg_str) = bit_array.to_string(msg_bits)
+      let assert Ok(msg_text) = bit_array.to_string(msg_bits)
 
-      io.print("received:\n" <> msg_str)
+      io.println("received:\n" <> msg_text)
 
-      let response_text = case cmd.parse(msg_str) {
+      let response_text = case cmd.parse(msg_text) {
         Ok(Ping) -> resp.to_string(SimpleStr("PONG"))
         Ok(Echo(bulkstr)) -> resp.to_string(bulkstr)
         Error(ParseErr(err)) -> resp.to_string(SimpleErr(err))
       }
 
-      io.print("sending:\n" <> response_text)
+      io.println("sending:\n" <> response_text)
 
       let response = bytes_builder.from_string(response_text)
       let assert Ok(_) = glisten.send(conn, response)
