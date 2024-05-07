@@ -1,5 +1,5 @@
-import cmd.{type ParseErr, Echo, ParseErr, Ping}
-import gleam/option.{Some}
+import cmd.{Echo, Get, Ping, Set}
+import gleam/option.{None, Some}
 import gleeunit
 import gleeunit/should
 import resp.{Array, BulkStr, SimpleStr}
@@ -10,26 +10,22 @@ pub fn main() {
 
 pub fn parse_empty_input_test() {
   ""
-  |> test_err(ParseErr("Input was empty"))
+  |> test_err("Input was empty")
 }
 
 pub fn parse_not_array_test() {
-  BulkStr(Some("hi"))
+  BulkStr(Some("PING"))
   |> resp.to_string
-  |> test_err(ParseErr("Input should be an array of bulk strings"))
+  |> test_err("input should be an array of bulk strings")
 }
 
 pub fn parse_element_not_bulkstr_test() {
-  Array([BulkStr(Some("hi")), SimpleStr("hi")])
+  Array([BulkStr(Some("PING")), SimpleStr("hi")])
   |> resp.to_string
-  |> test_err(ParseErr("Input should be an array of bulk strings"))
+  |> test_err("input should be an array of bulk strings")
 }
 
-pub fn parse_ping_test() {
-  Array([BulkStr(Some("ping"))])
-  |> resp.to_string
-  |> test_ok(Ping)
-}
+//
 
 pub fn parse_echo_test() {
   Array([BulkStr(Some("ECHO")), BulkStr(Some("hey"))])
@@ -45,24 +41,110 @@ pub fn parse_echo_lowercase_test() {
 
 pub fn parse_echo_multiple_args_test() {
   Array([
-    BulkStr(Some("echo")),
+    BulkStr(Some("ECHO")),
     BulkStr(Some("hey")),
-    BulkStr(Some("ignore this")),
+    BulkStr(Some("shouldn't be here")),
   ])
   |> resp.to_string
-  |> test_ok(Echo(BulkStr(Some("hey"))))
+  |> test_err("wrong number of arguments for command")
 }
 
 pub fn parse_echo_no_args_test() {
-  Array([BulkStr(Some("echo"))])
+  Array([BulkStr(Some("ECHO"))])
   |> resp.to_string
-  |> test_ok(Echo(BulkStr(Some(""))))
+  |> test_err("wrong number of arguments for command")
 }
 
+pub fn parse_echo_null_bulkstr_test() {
+  Array([BulkStr(Some("ECHO")), BulkStr(None)])
+  |> resp.to_string
+  |> test_ok(Echo(BulkStr(None)))
+}
+
+//
+
+pub fn parse_get_test() {
+  Array([BulkStr(Some("GET")), BulkStr(Some("key"))])
+  |> resp.to_string
+  |> test_ok(Get(BulkStr(Some("key"))))
+}
+
+pub fn parse_get_null_key_test() {
+  Array([BulkStr(Some("GET")), BulkStr(None)])
+  |> resp.to_string
+  |> test_err("key cannot be null")
+}
+
+pub fn parse_get_no_arg_test() {
+  Array([BulkStr(Some("GET"))])
+  |> resp.to_string
+  |> test_err("wrong number of arguments for command")
+}
+
+pub fn parse_get_two_args_test() {
+  Array([BulkStr(Some("GET")), BulkStr(Some("foo")), BulkStr(Some("bar"))])
+  |> resp.to_string
+  |> test_err("wrong number of arguments for command")
+}
+
+//
+
+pub fn parse_ping_test() {
+  Array([BulkStr(Some("PING"))])
+  |> resp.to_string
+  |> test_ok(Ping)
+}
+
+//
+
+pub fn parse_set_test() {
+  Array([BulkStr(Some("SET")), BulkStr(Some("foo")), BulkStr(Some("bar"))])
+  |> resp.to_string
+  |> test_ok(Set(BulkStr(Some("foo")), BulkStr(Some("bar"))))
+}
+
+pub fn parse_set_null_key_test() {
+  Array([BulkStr(Some("SET")), BulkStr(None), BulkStr(Some("bar"))])
+  |> resp.to_string
+  |> test_err("key cannot be null")
+}
+
+pub fn parse_set_null_value_test() {
+  Array([BulkStr(Some("SET")), BulkStr(Some("foo")), BulkStr(None)])
+  |> resp.to_string
+  |> test_err("value cannot be null")
+}
+
+pub fn parse_set_no_args_test() {
+  Array([BulkStr(Some("SET"))])
+  |> resp.to_string
+  |> test_err("wrong number of arguments for command")
+}
+
+pub fn parse_set_three_args_test() {
+  Array([
+    BulkStr(Some("SET")),
+    BulkStr(Some("foo")),
+    BulkStr(Some("bar")),
+    BulkStr(Some("baz")),
+  ])
+  |> resp.to_string
+  |> test_err("wrong number of arguments for command")
+}
+
+//
+
 pub fn parse_invalid_cmd_test() {
+  let cmd = "blah"
   Array([BulkStr(Some("blah"))])
   |> resp.to_string()
-  |> test_err(ParseErr("Did not find a valid command"))
+  |> test_err("unknown command '" <> cmd <> "'")
+}
+
+pub fn parse_invalid_cmd_null_bulkstr_test() {
+  Array([BulkStr(None)])
+  |> resp.to_string()
+  |> test_err("unknown command ''")
 }
 
 fn test_ok(input, expected) {
