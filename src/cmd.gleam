@@ -1,24 +1,20 @@
 import gleam/bool
 import gleam/list
-import gleam/option.{Some}
+import gleam/option.{None, Some}
 import gleam/result
 import gleam/string
 import resp.{type RespType, Array, BulkStr}
 
 pub type Command {
   Echo(RespType)
+  Get(RespType)
   Ping
+  Set(RespType, RespType)
 }
 
-pub type ParseErr {
-  ParseErr(err: String)
-}
-
-pub fn parse(input: String) -> Result(Command, ParseErr) {
+pub fn parse(input: String) -> Result(Command, String) {
   let chars = string.to_graphemes(input)
-  use resp_value <- result.try(
-    result.map_error(resp.parse_type(chars), fn(err) { ParseErr(err) }),
-  )
+  use resp_value <- result.try(resp.parse_type(chars))
 
   let is_array = case resp_value {
     Array(_) -> True
@@ -26,7 +22,7 @@ pub fn parse(input: String) -> Result(Command, ParseErr) {
   }
   use <- bool.guard(
     when: !is_array,
-    return: Error(ParseErr("Input should be an array of bulk strings")),
+    return: Error("input should be an array of bulk strings"),
   )
 
   let assert Array(resp_values) = resp_value
@@ -40,7 +36,7 @@ pub fn parse(input: String) -> Result(Command, ParseErr) {
 
   use <- bool.guard(
     !is_all_bulkstrs,
-    Error(ParseErr("Input should be an array of bulk strings")),
+    Error("input should be an array of bulk strings"),
   )
 
   let assert Ok(BulkStr(cmd_str_option)) = list.first(resp_values)
@@ -48,10 +44,23 @@ pub fn parse(input: String) -> Result(Command, ParseErr) {
   case string.uppercase(cmd_str) {
     "ECHO" ->
       case list.rest(resp_values) {
-        Ok([s]) | Ok([s, ..]) -> Ok(Echo(s))
-        _ -> Ok(Echo(BulkStr(Some(""))))
+        Ok([s]) -> Ok(Echo(s))
+        _ -> Error("wrong number of arguments for command")
+      }
+    "GET" ->
+      case list.rest(resp_values) {
+        Ok([BulkStr(None)]) -> Error("key cannot be null")
+        Ok([s]) -> Ok(Get(s))
+        _ -> Error("wrong number of arguments for command")
       }
     "PING" -> Ok(Ping)
-    _ -> Error(ParseErr("Did not find a valid command"))
+    "SET" ->
+      case list.rest(resp_values) {
+        Ok([BulkStr(None), _]) -> Error("key cannot be null")
+        Ok([_, BulkStr(None)]) -> Error("value cannot be null")
+        Ok([BulkStr(k), BulkStr(v)]) -> Ok(Set(BulkStr(k), BulkStr(v)))
+        _ -> Error("wrong number of arguments for command")
+      }
+    _ -> Error("unknown command '" <> cmd_str <> "'")
   }
 }
