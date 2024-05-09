@@ -11,6 +11,7 @@ with socket.create_connection((HOST, PORT)) as sock:
         "*2\r\n$4\r\nECHO\r\n$3\r\nhey\r\n",
         "*3\r\n$3\r\nSET\r\n$3\r\nfoo\r\n$3\r\nbar\r\n",
         "*2\r\n$3\r\nGET\r\n$3\r\nfoo\r\n",
+        "*2\r\n$3\r\nGET\r\n$3\r\nxxx\r\n"
     ]
     
     for input in inputs:
