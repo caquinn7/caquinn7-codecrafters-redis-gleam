@@ -47,7 +47,7 @@ fn process_msg(msg: String, ctx: Context) -> #(String, Context) {
         Error(_) -> #(resp.to_string(BulkStr(None)), ctx)
       }
     }
-    Ok(Set(key, val)) -> {
+    Ok(Set(key, val, _)) -> {
       let new_state = dict.update(ctx.state, key, fn(_) { val })
       #(resp.to_string(SimpleStr("OK")), Context(new_state))
     }
