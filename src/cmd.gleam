@@ -1,4 +1,3 @@
-import gleam/bool
 import gleam/list
 import gleam/option.{None, Some}
 import gleam/result
@@ -6,61 +5,72 @@ import gleam/string
 import resp.{type RespType, Array, BulkStr}
 
 pub type Command {
-  Echo(RespType)
-  Get(RespType)
+  Echo(String)
+  Get(String)
   Ping
-  Set(RespType, RespType)
+  Set(String, String)
 }
 
 pub fn parse(input: String) -> Result(Command, String) {
   let chars = string.to_graphemes(input)
   use resp_value <- result.try(resp.parse_type(chars))
+  use str_options <- result.try(unwrap_bulkstrs(resp_value))
 
-  let is_array = case resp_value {
-    Array(_) -> True
-    _ -> False
-  }
-  use <- bool.guard(
-    when: !is_array,
-    return: Error("input should be an array of bulk strings"),
-  )
-
-  let assert Array(resp_values) = resp_value
-  let is_all_bulkstrs =
-    list.all(resp_values, fn(v) {
-      case v {
-        BulkStr(_) -> True
-        _ -> False
-      }
-    })
-
-  use <- bool.guard(
-    !is_all_bulkstrs,
-    Error("input should be an array of bulk strings"),
-  )
-
-  let assert Ok(BulkStr(cmd_str_option)) = list.first(resp_values)
+  let assert Ok(cmd_str_option) = list.first(str_options)
   let assert Some(cmd_str) = option.or(cmd_str_option, Some(""))
+  let rest = list.rest(str_options)
+
   case string.uppercase(cmd_str) {
     "ECHO" ->
-      case list.rest(resp_values) {
-        Ok([s]) -> Ok(Echo(s))
+      case rest {
+        Ok([Some(s)]) -> Ok(Echo(s))
+        Ok([None]) -> Error("invalid argument")
         _ -> Error("wrong number of arguments for command")
       }
     "GET" ->
-      case list.rest(resp_values) {
-        Ok([BulkStr(None)]) -> Error("key cannot be null")
-        Ok([s]) -> Ok(Get(s))
+      case rest {
+        Ok([None]) -> Error("key cannot be null")
+        Ok([Some(s)]) -> Ok(Get(s))
         _ -> Error("wrong number of arguments for command")
       }
     "PING" -> Ok(Ping)
     "SET" ->
-      case list.rest(resp_values) {
-        Ok([BulkStr(None), _]) -> Error("key cannot be null")
-        Ok([_, BulkStr(None)]) -> Error("value cannot be null")
-        Ok([BulkStr(k), BulkStr(v)]) -> Ok(Set(BulkStr(k), BulkStr(v)))
+      case rest {
+        Ok([None, _]) -> Error("key cannot be null")
+        Ok([_, None]) -> Error("value cannot be null")
+        Ok([Some(k), Some(v)]) -> Ok(Set(k, v))
         _ -> Error("wrong number of arguments for command")
       }
     _ -> Error("unknown command '" <> cmd_str <> "'")
+  }
+}
+
+fn unwrap_bulkstrs(resp_value: RespType) {
+  let err_msg = "input should be an array of bulk strings"
+
+  use resp_values <- result.try(case resp_value {
+    Array([v, ..vs]) -> Ok([v, ..vs])
+    _ -> Error(err_msg)
+  })
+
+  let is_bulkstr = fn(v) {
+    case v {
+      BulkStr(_) -> True
+      _ -> False
+    }
+  }
+  let to_list = fn(arr) {
+    arr
+    |> list.map(fn(v) {
+      let assert BulkStr(opt) = v
+      opt
+    })
+  }
+  case list.all(resp_values, is_bulkstr) {
+    True ->
+      resp_values
+      |> to_list
+      |> Ok
+    False -> Error(err_msg)
   }
 }

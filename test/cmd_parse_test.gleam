@@ -30,13 +30,13 @@ pub fn parse_element_not_bulkstr_test() {
 pub fn parse_echo_test() {
   Array([BulkStr(Some("ECHO")), BulkStr(Some("hey"))])
   |> resp.to_string
-  |> test_ok(Echo(BulkStr(Some("hey"))))
+  |> test_ok(Echo("hey"))
 }
 
 pub fn parse_echo_lowercase_test() {
   Array([BulkStr(Some("echo")), BulkStr(Some("hey"))])
   |> resp.to_string
-  |> test_ok(Echo(BulkStr(Some("hey"))))
+  |> test_ok(Echo("hey"))
 }
 
 pub fn parse_echo_multiple_args_test() {
@@ -58,7 +58,7 @@ pub fn parse_echo_no_args_test() {
 pub fn parse_echo_null_bulkstr_test() {
   Array([BulkStr(Some("ECHO")), BulkStr(None)])
   |> resp.to_string
-  |> test_ok(Echo(BulkStr(None)))
+  |> test_err("invalid argument")
 }
 
 //
@@ -66,7 +66,7 @@ pub fn parse_echo_null_bulkstr_test() {
 pub fn parse_get_test() {
   Array([BulkStr(Some("GET")), BulkStr(Some("key"))])
   |> resp.to_string
-  |> test_ok(Get(BulkStr(Some("key"))))
+  |> test_ok(Get("key"))
 }
 
 pub fn parse_get_null_key_test() {
@@ -100,7 +100,7 @@ pub fn parse_ping_test() {
 pub fn parse_set_test() {
   Array([BulkStr(Some("SET")), BulkStr(Some("foo")), BulkStr(Some("bar"))])
   |> resp.to_string
-  |> test_ok(Set(BulkStr(Some("foo")), BulkStr(Some("bar"))))
+  |> test_ok(Set("foo", "bar"))
 }
 
 pub fn parse_set_null_key_test() {
