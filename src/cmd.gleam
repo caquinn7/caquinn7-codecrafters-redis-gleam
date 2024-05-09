@@ -1,5 +1,6 @@
+import gleam/int
 import gleam/list
-import gleam/option.{None, Some}
+import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
 import resp.{type RespType, Array, BulkStr}
@@ -8,7 +9,7 @@ pub type Command {
   Echo(String)
   Get(String)
   Ping
-  Set(String, String)
+  Set(String, String, Option(Int))
 }
 
 pub fn parse(input: String) -> Result(Command, String) {
@@ -36,10 +37,21 @@ pub fn parse(input: String) -> Result(Command, String) {
     "PING" -> Ok(Ping)
     "SET" ->
       case rest {
-        Ok([None, _]) -> Error("key cannot be null")
-        Ok([_, None]) -> Error("value cannot be null")
-        Ok([Some(k), Some(v)]) -> Ok(Set(k, v))
-        _ -> Error("wrong number of arguments for command")
+        Ok([None, _, ..]) -> Error("key cannot be null")
+        Ok([_, None, ..]) -> Error("value cannot be null")
+        Ok([Some(k), Some(v)]) -> Ok(Set(k, v, None))
+        Ok([Some(k), Some(v), Some(arg), Some(arg_val)]) ->
+          case string.uppercase(arg) {
+            "PX" -> {
+              use millisecs <- result.try(result.replace_error(
+                int.parse(arg_val),
+                "value is not an integer or out of range",
+              ))
+              Ok(Set(k, v, Some(millisecs)))
+            }
+            _ -> Error("syntax error")
+          }
+        _ -> Error("syntax error")
       }
     _ -> Error("unknown command '" <> cmd_str <> "'")
   }
