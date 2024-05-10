@@ -100,7 +100,7 @@ pub fn parse_ping_test() {
 pub fn parse_set_test() {
   Array([BulkStr(Some("SET")), BulkStr(Some("foo")), BulkStr(Some("bar"))])
   |> resp.to_string
-  |> test_ok(Set("foo", "bar"))
+  |> test_ok(Set("foo", "bar", None))
 }
 
 pub fn parse_set_null_key_test() {
@@ -118,18 +118,78 @@ pub fn parse_set_null_value_test() {
 pub fn parse_set_no_args_test() {
   Array([BulkStr(Some("SET"))])
   |> resp.to_string
-  |> test_err("wrong number of arguments for command")
+  |> test_err("syntax error")
 }
 
-pub fn parse_set_three_args_test() {
+pub fn parse_set_invalid_arg_test() {
   Array([
     BulkStr(Some("SET")),
     BulkStr(Some("foo")),
     BulkStr(Some("bar")),
-    BulkStr(Some("baz")),
+    BulkStr(Some("BAD")),
+    BulkStr(Some("100")),
   ])
   |> resp.to_string
-  |> test_err("wrong number of arguments for command")
+  |> test_err("syntax error")
+}
+
+pub fn parse_set_px_with_no_val_test() {
+  Array([
+    BulkStr(Some("SET")),
+    BulkStr(Some("foo")),
+    BulkStr(Some("bar")),
+    BulkStr(Some("PX")),
+  ])
+  |> resp.to_string
+  |> test_err("syntax error")
+}
+
+pub fn parse_set_px_with_null_val_test() {
+  Array([
+    BulkStr(Some("SET")),
+    BulkStr(Some("foo")),
+    BulkStr(Some("bar")),
+    BulkStr(Some("PX")),
+    BulkStr(None),
+  ])
+  |> resp.to_string
+  |> test_err("syntax error")
+}
+
+pub fn parse_set_arg_none_with_val_test() {
+  Array([
+    BulkStr(Some("SET")),
+    BulkStr(Some("foo")),
+    BulkStr(Some("bar")),
+    BulkStr(None),
+    BulkStr(Some("100")),
+  ])
+  |> resp.to_string
+  |> test_err("syntax error")
+}
+
+pub fn parse_set_px_with_non_integer_test() {
+  Array([
+    BulkStr(Some("SET")),
+    BulkStr(Some("foo")),
+    BulkStr(Some("bar")),
+    BulkStr(Some("PX")),
+    BulkStr(Some("not a number")),
+  ])
+  |> resp.to_string
+  |> test_err("value is not an integer or out of range")
+}
+
+pub fn parse_set_px_test() {
+  Array([
+    BulkStr(Some("SET")),
+    BulkStr(Some("foo")),
+    BulkStr(Some("bar")),
+    BulkStr(Some("PX")),
+    BulkStr(Some("100")),
+  ])
+  |> resp.to_string
+  |> test_ok(Set("foo", "bar", Some(100)))
 }
 
 //
