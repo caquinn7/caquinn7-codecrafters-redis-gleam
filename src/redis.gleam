@@ -4,13 +4,18 @@ import gleam/bytes_builder
 import gleam/dict.{type Dict}
 import gleam/erlang/process
 import gleam/io
-import gleam/option.{None, Some}
+import gleam/option.{type Option, None, Some}
 import gleam/otp/actor
 import glisten.{Packet}
 import resp.{BulkStr, SimpleErr, SimpleStr}
+import time
+
+pub type Item {
+  Item(value: String, expires_at: Option(Int))
+}
 
 pub type Context {
-  Context(state: Dict(String, String))
+  Context(state: Dict(String, Item))
 }
 
 pub fn main() {
@@ -43,12 +48,23 @@ fn process_msg(msg: String, ctx: Context) -> #(String, Context) {
     Ok(Echo(s)) -> #(resp.to_string(BulkStr(Some(s))), ctx)
     Ok(Get(key)) -> {
       case dict.get(ctx.state, key) {
-        Ok(val) -> #(resp.to_string(BulkStr(Some(val))), ctx)
+        Ok(Item(val, exp)) -> {
+          let now = time.now()
+          case exp {
+            None -> #(resp.to_string(BulkStr(Some(val))), ctx)
+            Some(t) if now < t -> #(resp.to_string(BulkStr(Some(val))), ctx)
+            _ -> #(resp.to_string(BulkStr(None)), ctx)
+          }
+        }
         Error(_) -> #(resp.to_string(BulkStr(None)), ctx)
       }
     }
-    Ok(Set(key, val)) -> {
-      let new_state = dict.update(ctx.state, key, fn(_) { val })
+    Ok(Set(key, val, exp)) -> {
+      let new_state =
+        dict.update(ctx.state, key, fn(_) {
+          let expires_at = option.map(exp, fn(t) { time.now() + t })
+          Item(val, expires_at)
+        })
       #(resp.to_string(SimpleStr("OK")), Context(new_state))
     }
     Ok(Ping) -> #(resp.to_string(SimpleStr("PONG")), ctx)
