@@ -1,9 +1,12 @@
+import context.{type Context, type Item, Context, Item}
+import gleam/dict
 import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
-import resp.{type RespType, Array, BulkStr}
+import resp.{type RespType, Array, BulkStr, SimpleErr, SimpleStr}
+import time
 
 pub type Command {
   Echo(String)
@@ -54,6 +57,37 @@ pub fn parse(input: String) -> Result(Command, String) {
         _ -> Error("syntax error")
       }
     _ -> Error("unknown command '" <> cmd_str <> "'")
+  }
+}
+
+pub fn do_echo(to_echo: String, ctx: Context) {
+  #(resp.to_string(BulkStr(Some(to_echo))), ctx)
+}
+
+pub fn do_ping(ctx: Context) {
+  #(resp.to_string(SimpleStr("PONG")), ctx)
+}
+
+pub fn do_set(key: String, val: String, expiry: Option(Int), ctx: Context) {
+  let new_state =
+    dict.update(ctx.state, key, fn(_) {
+      let expires_at = option.map(expiry, fn(t) { time.now() + t })
+      Item(val, expires_at)
+    })
+  #(resp.to_string(SimpleStr("OK")), Context(new_state))
+}
+
+pub fn do_get(key: String, ctx: Context) {
+  case dict.get(ctx.state, key) {
+    Ok(Item(val, exp)) -> {
+      let now = time.now()
+      case exp {
+        None -> #(resp.to_string(BulkStr(Some(val))), ctx)
+        Some(t) if now < t -> #(resp.to_string(BulkStr(Some(val))), ctx)
+        _ -> #(resp.to_string(BulkStr(None)), ctx)
+      }
+    }
+    Error(_) -> #(resp.to_string(BulkStr(None)), ctx)
   }
 }
 
