@@ -20,8 +20,12 @@ def send_and_receive(sock, input):
     sock.sendall(input.encode())
     return sock.recv(1024)
 
-with socket.create_connection((HOST, PORT)) as sock:
+def open_conn():
+    sock = socket.create_connection((HOST, PORT))
     print('Connected successfully!')
+    return sock
+
+with open_conn() as sock:
     test(sock, '*1\r\n$4\r\nPING\r\n', "+PONG\r\n")
     test(sock, '*2\r\n$4\r\nECHO\r\n$3\r\nhey\r\n', "$3\r\nhey\r\n")
     test(sock, '*3\r\n$3\r\nSET\r\n$3\r\nfoo\r\n$3\r\nbar\r\n', '+OK\r\n')
@@ -31,4 +35,8 @@ with socket.create_connection((HOST, PORT)) as sock:
     test(sock, '*2\r\n$3\r\nGET\r\n$3\r\nfoo\r\n', '$3\r\nbar\r\n')
     time.sleep(101 / 1000)
     test(sock, '*2\r\n$3\r\nGET\r\n$5\r\nhello\r\n', '$-1\r\n')
+
+with open_conn() as sock:
+    test(sock, '*2\r\n$3\r\nGET\r\n$3\r\nfoo\r\n', '$3\r\nbar\r\n')
+
     
