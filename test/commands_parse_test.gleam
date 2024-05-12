@@ -1,4 +1,4 @@
-import cmd.{Echo, Get, Ping, Set}
+import commands.{Echo, Get, Ping, Set}
 import gleam/option.{None, Some}
 import gleeunit
 import gleeunit/should
@@ -209,14 +209,14 @@ pub fn parse_invalid_cmd_null_bulkstr_test() {
 
 fn test_ok(input, expected) {
   input
-  |> cmd.parse
+  |> commands.parse
   |> should.be_ok
   |> should.equal(expected)
 }
 
 fn test_err(input, expected) {
   input
-  |> cmd.parse
+  |> commands.parse
   |> should.be_error
   |> should.equal(expected)
 }
