@@ -1,4 +1,4 @@
-import commands.{Echo, Get, Ping, Set}
+import commands
 import gleam/bit_array
 import gleam/bytes_builder
 import gleam/erlang/process
@@ -25,22 +25,19 @@ pub fn main() {
   process.sleep_forever()
 }
 
-fn loop(msg, state, conn) {
+pub fn loop(msg, state, conn) {
   let assert Packet(msg_bits) = msg
   let assert Ok(msg_text) = bit_array.to_string(msg_bits)
-  let #(response_text, next_state) = process_msg(msg_text, state)
+  let response_text = process_msg(msg_text, state)
   let response = bytes_builder.from_string(response_text)
   let assert Ok(_) = glisten.send(conn, response)
-  actor.continue(next_state)
+  actor.continue(state)
 }
 
-fn process_msg(msg: String, state: State) -> #(String, State) {
-  case commands.parse(msg) {
-    Ok(Ping) -> commands.do_ping(state)
-    Ok(Echo(str)) -> commands.do_echo(str, state)
-    Ok(Get(key)) -> commands.do_get(key, state, time.now)
-    Ok(Set(key, val, expiry)) ->
-      commands.do_set(key, val, expiry, time.now, state)
-    Error(err) -> #(resp.to_string(SimpleErr(err)), state)
+fn process_msg(msg: String, state: State) {
+  let result = case commands.parse(msg) {
+    Ok(cmd) -> commands.execute(cmd, state, time.now)
+    Error(err) -> SimpleErr(err)
   }
+  resp.to_string(result)
 }

@@ -1,4 +1,5 @@
 import carpenter/table
+import gleam/bool
 import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
@@ -59,40 +60,40 @@ pub fn parse(input: String) -> Result(Command, String) {
   }
 }
 
-pub fn do_echo(to_echo: String, state: State) {
-  #(resp.to_string(BulkStr(Some(to_echo))), state)
+pub fn execute(cmd: Command, state: State, get_time: fn() -> Int) -> RespType {
+  case cmd {
+    Ping -> SimpleStr("PONG")
+    Echo(str) -> BulkStr(Some(str))
+    Get(key) -> get(key, state, get_time)
+    Set(key, val, life_time) -> set(key, val, life_time, state, get_time)
+  }
 }
 
-pub fn do_ping(state: State) {
-  #(resp.to_string(SimpleStr("PONG")), state)
-}
-
-pub fn do_set(
+fn set(
   key: String,
   val: String,
-  expiry: Option(Int),
-  get_time: fn() -> Int,
+  life_time: Option(Int),
   state: State,
+  get_time: fn() -> Int,
 ) {
-  let expires_at = option.map(expiry, fn(t) { get_time() + t })
+  let expires_at = option.map(life_time, fn(t) { get_time() + t })
   table.insert(state, [#(key, Item(val, expires_at))])
-  #(resp.to_string(SimpleStr("OK")), state)
+  SimpleStr("OK")
 }
 
-pub fn do_get(key: String, state: State, get_time: fn() -> Int) {
-  case table.lookup(state, key) {
-    [#(_, Item(val, exp))] -> {
-      let now = get_time()
-      case exp {
-        None -> #(resp.to_string(BulkStr(Some(val))), state)
-        Some(t) if now < t -> #(resp.to_string(BulkStr(Some(val))), state)
-        _ -> {
-          table.delete(state, key)
-          #(resp.to_string(BulkStr(None)), state)
-        }
-      }
+fn get(key: String, state: State, get_time: fn() -> Int) {
+  let vals = table.lookup(state, key)
+  use <- bool.guard(when: list.is_empty(vals), return: BulkStr(None))
+
+  let assert [#(_, Item(val, expires_at))] = vals
+  let now = get_time()
+  case expires_at {
+    None -> BulkStr(Some(val))
+    Some(t) if now < t -> BulkStr(Some(val))
+    _ -> {
+      table.delete(state, key)
+      BulkStr(None)
     }
-    _ -> #(resp.to_string(BulkStr(None)), state)
   }
 }
 
