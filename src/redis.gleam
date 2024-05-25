@@ -1,11 +1,11 @@
-import commands
-import gleam/bit_array
+import commands/commands
+import commands/parse_error
 import gleam/bytes_builder
 import gleam/erlang/process
 import gleam/option.{None}
 import gleam/otp/actor
 import glisten.{Packet}
-import resp.{SimpleErr}
+import resp.{SimpleError}
 import state.{type State}
 import time
 
@@ -27,17 +27,18 @@ pub fn main() {
 
 pub fn loop(msg, state, conn) {
   let assert Packet(msg_bits) = msg
-  let assert Ok(msg_text) = bit_array.to_string(msg_bits)
-  let response_text = process_msg(msg_text, state)
-  let response = bytes_builder.from_string(response_text)
-  let assert Ok(_) = glisten.send(conn, response)
+  let response = process_msg(msg_bits, state)
+  let assert Ok(_) = glisten.send(conn, bytes_builder.from_bit_array(response))
   actor.continue(state)
 }
 
-fn process_msg(msg: String, state: State) {
+fn process_msg(msg: BitArray, state: State) {
   let result = case commands.parse(msg) {
     Ok(cmd) -> commands.execute(cmd, state, time.now)
-    Error(err) -> SimpleErr(err)
+    Error(err) -> {
+      let msg = parse_error.to_string(err)
+      SimpleError("ERR " <> msg)
+    }
   }
-  resp.to_string(result)
+  resp.encode(result)
 }

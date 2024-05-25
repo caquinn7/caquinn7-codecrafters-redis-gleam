@@ -1,146 +1,156 @@
-import gleam/bool
+import gleam/bit_array
+import gleam/bytes_builder
 import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
-import gleam/string
-
-const crlf = "\r\n"
-
-const dollar_sign = "$"
-
-const asterisk = "*"
-
-const plus = "+"
-
-const minus = "-"
 
 pub type RespType {
-  // +<string>\r\n
-  SimpleStr(String)
-  // $<length>\r\n<string>\r\n OR $-1\r\n (the null bulk string)
-  BulkStr(Option(String))
-  // -Error message\r\n
-  SimpleErr(String)
-  // *<number-of-elements>\r\n<element-1>...<element-n>
+  SimpleString(String)
+  BulkString(Option(BitArray))
+  SimpleError(String)
   Array(List(RespType))
 }
 
-pub fn to_string(t: RespType) {
-  case t {
-    SimpleStr(str) -> plus <> str <> crlf
-    BulkStr(Some(str)) ->
-      dollar_sign <> int.to_string(string.length(str)) <> crlf <> str <> crlf
-    BulkStr(None) -> dollar_sign <> "-1" <> crlf
-    SimpleErr(str) -> minus <> str <> crlf
+pub type Parsed {
+  Parsed(parsed: RespType, remaining: BitArray)
+}
+
+pub type ParseError {
+  UnexpectedInput(BitArray)
+  NotEnoughInput
+  InvalidUnicode
+}
+
+pub fn encode(resp_value: RespType) {
+  case resp_value {
+    SimpleString(str) -> <<{ "+" <> str <> "\r\n" }:utf8>>
+    BulkString(None) -> <<{ "$-1\r\n" }:utf8>>
+    BulkString(Some(bits)) -> {
+      let size = int.to_string(bit_array.byte_size(bits))
+      <<"$":utf8, size:utf8, "\r\n":utf8, bits:bits, "\r\n":utf8>>
+    }
+    SimpleError(str) -> <<{ "-" <> str <> "\r\n" }:utf8>>
     Array(elements) -> {
-      asterisk
-      <> int.to_string(list.length(elements))
-      <> crlf
-      <> string.join(list.map(elements, to_string), "")
+      let encoded_elements =
+        elements
+        |> list.map(encode)
+        |> bytes_builder.concat_bit_arrays
+
+      let len = int.to_string(list.length(elements))
+      let beginning = <<"*":utf8, len:utf8, "\r\n":utf8>>
+
+      encoded_elements
+      |> bytes_builder.prepend(beginning)
+      |> bytes_builder.to_bit_array
     }
   }
 }
 
-pub fn parse_type(chars: List(String)) -> Result(RespType, String) {
-  use type_symbol <- result.try(result.replace_error(
-    list.first(chars),
-    "Input was empty",
-  ))
-  let rest = list.drop(chars, 1)
-  case type_symbol {
-    s if s == asterisk -> parse_array(rest)
-    s if s == plus -> parse_simplestr(rest)
-    s if s == dollar_sign -> parse_bulkstr(rest)
-    _ -> Error("Could not parse type symbol")
+pub fn parse(input: BitArray) -> Result(Parsed, ParseError) {
+  case input {
+    <<"+":utf8, rest:bits>> -> parse_simple_string(rest, <<>>)
+    <<"$-1\r\n":utf8, rest:bits>> -> Ok(Parsed(BulkString(None), rest))
+    <<"$":utf8, rest:bits>> -> parse_bulk_string(rest)
+    <<"*":utf8, rest:bits>> -> parse_array(rest)
+    input -> Error(UnexpectedInput(input))
   }
 }
 
-fn parse_array(chars: List(String)) -> Result(RespType, String) {
-  let digits = list.take_while(chars, fn(c) { c != crlf })
-  use len <- result.try(result.replace_error(
-    int.parse(string.join(digits, "")),
-    "Could not parse length of array",
+fn parse_array(input: BitArray) -> Result(Parsed, ParseError) {
+  use #(len, input_after_len) <- result.try(parse_raw_int(input, 0))
+  use #(elements, remaining) <- result.try(parse_array_elements(
+    input_after_len,
+    [],
+    len,
   ))
-  let rest = list.drop(chars, list.length(digits) + 1)
-  let parsed_elements = parse_array_elements(rest, len, [])
-  result.map(parsed_elements, fn(elements) { Array(list.reverse(elements)) })
+  case list.length(elements) < len {
+    False -> Ok(Parsed(Array(elements), remaining))
+    True -> Error(NotEnoughInput)
+  }
 }
 
 fn parse_array_elements(
-  chars: List(String),
-  expected_len: Int,
+  input: BitArray,
   elements: List(RespType),
-) -> Result(List(RespType), String) {
+  expected_len: Int,
+) -> Result(#(List(RespType), BitArray), ParseError) {
   case expected_len == 0 {
-    True -> Ok(elements)
+    True -> Ok(#(list.reverse(elements), input))
     False -> {
-      use element <- result.try(parse_type(chars))
-      let consumed_chars_count =
-        element
-        |> to_string
-        |> string.length
-      let rest = list.drop(chars, consumed_chars_count)
-      parse_array_elements(rest, expected_len - 1, [element, ..elements])
+      parse(input)
+      |> result.map_error(fn(err) {
+        case err {
+          // expected more elements but nothing else to parse
+          UnexpectedInput(<<>>) -> NotEnoughInput
+          err -> err
+        }
+      })
+      |> result.try(fn(parsed) {
+        let assert Parsed(element, remaining) = parsed
+        parse_array_elements(remaining, [element, ..elements], expected_len - 1)
+      })
     }
   }
 }
 
-fn parse_bulkstr(chars: List(String)) -> Result(RespType, String) {
-  let digits = list.take_while(chars, fn(c) { c != crlf })
-  use len <- result.try(result.replace_error(
-    int.parse(string.join(digits, "")),
-    "Could not parse length of bulk string",
-  ))
+fn parse_simple_string(input: BitArray, consumed: BitArray) {
+  case input {
+    <<>> -> Error(NotEnoughInput)
 
-  use <- bool.lazy_guard(when: len == -1, return: fn() {
-    let remaining_chars = list.drop(chars, list.length(digits))
-    case list.first(remaining_chars) {
-      Ok(s) if s == crlf -> Ok(BulkStr(None))
-      _ -> Error("Unterminated bulk string")
-    }
-  })
+    <<"\r\n":utf8, rest:bits>> ->
+      case bit_array.to_string(consumed) {
+        Ok(str) -> Ok(Parsed(SimpleString(str), rest))
+        Error(_) -> Error(InvalidUnicode)
+      }
 
-  let remaining_chars = list.drop(chars, list.length(digits) + 1)
-  let content_chars = list.take(remaining_chars, len)
+    <<c, rest:bits>> ->
+      case c {
+        // LF and CR not allowed in simple string
+        10 | 13 -> Error(UnexpectedInput(<<c>>))
+        _ -> parse_simple_string(rest, <<consumed:bits, c>>)
+      }
 
-  use content <- result.try(case list.length(content_chars) == len {
-    True -> Ok(string.join(content_chars, ""))
-    False ->
-      Error("Could not parse bulk string of length " <> int.to_string(len))
-  })
-
-  let terminator =
-    remaining_chars
-    |> list.drop(len)
-    |> list.first
-
-  case terminator {
-    Ok(s) if s == crlf -> Ok(BulkStr(Some(content)))
-    _ -> Error("Unterminated bulk string")
+    input -> Error(UnexpectedInput(input))
   }
 }
 
-fn parse_simplestr(chars: List(String)) -> Result(RespType, String) {
-  let content_chars = list.take_while(chars, fn(c) { c != crlf })
+fn parse_bulk_string(input: BitArray) {
+  // input after $<len>\r\n
+  use #(content_len, input_after_len) <- result.try(parse_raw_int(input, 0))
 
-  let is_invalid_char = fn(c) { c == "\r" || c == "\n" }
-  let has_invalid_chars = case list.any(content_chars, is_invalid_char) {
-    False -> Ok(Nil)
-    True ->
-      Error(
-        "Simple strings cannot contain carriage return or line feed characters",
-      )
+  let total_len = bit_array.byte_size(input_after_len)
+  let content = bit_array.slice(from: input_after_len, at: 0, take: content_len)
+  let rest =
+    bit_array.slice(input_after_len, content_len, total_len - content_len)
+
+  case content, rest {
+    _, Ok(<<>>) -> Error(NotEnoughInput)
+    _, Ok(<<"\r":utf8>>) -> Error(NotEnoughInput)
+
+    Ok(content), Ok(<<"\r\n":utf8, rest:bits>>) ->
+      Ok(Parsed(BulkString(Some(content)), rest))
+
+    _, Ok(rest) -> Error(UnexpectedInput(rest))
+    Error(_), Error(_) -> Error(NotEnoughInput)
+    _, _ -> Error(UnexpectedInput(input_after_len))
   }
-  use _ <- result.try(has_invalid_chars)
+}
 
-  let terminator =
-    chars
-    |> list.drop(list.length(content_chars))
-    |> list.first
-
-  case terminator {
-    Ok(s) if s == crlf -> Ok(SimpleStr(string.join(content_chars, "")))
-    _ -> Error("Unterminated simple string")
+fn parse_raw_int(input: BitArray, n: Int) {
+  case input {
+    <<"0":utf8, rest:bits>> -> parse_raw_int(rest, 0 + n * 10)
+    <<"1":utf8, rest:bits>> -> parse_raw_int(rest, 1 + n * 10)
+    <<"2":utf8, rest:bits>> -> parse_raw_int(rest, 2 + n * 10)
+    <<"3":utf8, rest:bits>> -> parse_raw_int(rest, 3 + n * 10)
+    <<"4":utf8, rest:bits>> -> parse_raw_int(rest, 4 + n * 10)
+    <<"5":utf8, rest:bits>> -> parse_raw_int(rest, 5 + n * 10)
+    <<"6":utf8, rest:bits>> -> parse_raw_int(rest, 6 + n * 10)
+    <<"7":utf8, rest:bits>> -> parse_raw_int(rest, 7 + n * 10)
+    <<"8":utf8, rest:bits>> -> parse_raw_int(rest, 8 + n * 10)
+    <<"9":utf8, rest:bits>> -> parse_raw_int(rest, 9 + n * 10)
+    <<"\r\n":utf8, rest:bits>> -> Ok(#(n, rest))
+    <<"\r":utf8>> | <<>> -> Error(NotEnoughInput)
+    _ -> Error(UnexpectedInput(input))
   }
 }

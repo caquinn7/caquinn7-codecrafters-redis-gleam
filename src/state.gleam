@@ -2,12 +2,12 @@ import carpenter/table.{type Set as EtsTable}
 import gleam/option.{type Option}
 import gluid
 
-pub type State =
-  EtsTable(String, Item)
-
 pub type Item {
-  Item(value: String, expires_at: Option(Int))
+  Item(value: BitArray, expires_at: Option(Int))
 }
+
+pub type State =
+  EtsTable(BitArray, Item)
 
 pub fn init() {
   let assert Ok(ets) =
