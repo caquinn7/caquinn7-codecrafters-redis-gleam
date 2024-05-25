@@ -1,4 +1,6 @@
-import carpenter/table
+import cache.{Item}
+
+// import carpenter/table
 import commands/commands.{Echo, Get, Ping, Set}
 import commands/parse_error.{
   InvalidArgument, InvalidCommand, Null, PostiveIntegerRequired, SyntaxError,
@@ -9,7 +11,6 @@ import gleam/option.{None, Some}
 import gleeunit
 import gleeunit/should
 import resp.{Array, BulkString, SimpleString}
-import state.{Item}
 
 pub fn main() {
   gleeunit.main()
@@ -230,70 +231,74 @@ pub fn execute_echo_test() {
   let input = <<"hello":utf8>>
   input
   |> Echo
-  |> commands.execute(state.init(), fn() { 1 })
+  |> commands.execute(cache.init(), fn() { 1 })
   |> should.equal(BulkString(Some(input)))
 }
 
 pub fn execute_ping_test() {
   Ping
-  |> commands.execute(state.init(), fn() { 1 })
+  |> commands.execute(cache.init(), fn() { 1 })
   |> should.equal(SimpleString("PONG"))
 }
 
 pub fn execute_set_test() {
   let cmd = Set(<<"foo":utf8>>, <<"bar":utf8>>, None)
   let assert Set(key, val, _) = cmd
-  let state = state.init()
+  let cache = cache.init()
 
-  commands.execute(cmd, state, fn() { 1 })
+  commands.execute(cmd, cache, fn() { 1 })
   |> should.equal(SimpleString("OK"))
 
-  table.lookup(state, key)
-  |> should.equal([#(key, Item(val, None))])
+  cache.get(cache, key)
+  |> should.be_ok
+  |> should.equal(Item(val, None))
 }
 
 pub fn execute_set_px_test() {
   let cmd = Set(<<"foo":utf8>>, <<"bar":utf8>>, Some(1000))
   let assert Set(key, val, Some(life_time)) = cmd
   let now = 1
-  let state = state.init()
+  let cache = cache.init()
 
-  commands.execute(cmd, state, fn() { now })
+  commands.execute(cmd, cache, fn() { now })
   |> should.equal(SimpleString("OK"))
 
-  table.lookup(state, key)
-  |> should.equal([#(key, Item(val, Some(life_time + now)))])
+  cache.get(cache, key)
+  |> should.be_ok
+  |> should.equal(Item(val, Some(life_time + now)))
 }
 
 pub fn execute_get_key_exists_test() {
   let key = <<"foo":utf8>>
   let val = <<"bar":utf8>>
 
-  let state = state.init()
-  table.insert(state, [#(key, Item(val, None))])
+  let cache = cache.init()
+  cache.set(cache, key, Item(val, None))
 
-  commands.execute(Get(key), state, fn() { 1 })
+  commands.execute(Get(key), cache, fn() { 1 })
   |> should.equal(BulkString(Some(val)))
 
-  table.lookup(state, key)
-  |> should.equal([#(key, Item(val, None))])
+  cache.get(cache, key)
+  |> should.be_ok
+  |> should.equal(Item(val, None))
 }
 
 pub fn execute_get_key_does_not_exist_test() {
-  commands.execute(Get(<<"foo":utf8>>), state.init(), fn() { 1 })
+  commands.execute(Get(<<"foo":utf8>>), cache.init(), fn() { 1 })
   |> should.equal(BulkString(None))
 }
 
 pub fn execute_get_key_expired_test() {
   let key = <<"foo":utf8>>
-  let state = state.init()
-  table.insert(state, [#(key, Item(<<"foo":utf8>>, Some(1)))])
+  let cache = cache.init()
+  cache.set(cache, key, Item(<<"foo":utf8>>, Some(1)))
 
-  commands.execute(Get(key), state, fn() { 2 })
+  commands.execute(Get(key), cache, fn() { 2 })
   |> should.equal(BulkString(None))
 
-  table.lookup(state, key)
-  |> should.equal([])
+  cache.get(cache, key)
+  |> should.be_error
+  |> should.equal(Nil)
 }
 
 pub fn test_ok(input, expected) {

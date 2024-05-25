@@ -1,17 +1,16 @@
 import binary_utils
+import cache.{type Cache, type Item, Item}
 import carpenter/table
 import commands/parse_error.{
   type ParseError, InvalidArgument, InvalidCommand, Null, PostiveIntegerRequired,
   SyntaxError, WrongNumberOfArguments,
 }
 import gleam/bit_array
-import gleam/bool
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
 import resp.{type RespType, Array, BulkString, Parsed, SimpleString}
-import state.{type Item, type State, Item}
 
 pub type Command {
   Echo(BitArray)
@@ -63,12 +62,12 @@ pub fn parse(input: BitArray) -> Result(Command, ParseError) {
   }
 }
 
-pub fn execute(cmd: Command, state: State, get_time: fn() -> Int) -> RespType {
+pub fn execute(cmd: Command, cache: Cache, get_time: fn() -> Int) -> RespType {
   case cmd {
     Ping -> SimpleString("PONG")
     Echo(msg) -> BulkString(Some(msg))
-    Get(key) -> get(key, state, get_time)
-    Set(key, val, life_time) -> set(key, val, life_time, state, get_time)
+    Get(key) -> get(key, cache, get_time)
+    Set(key, val, life_time) -> set(key, val, life_time, cache, get_time)
   }
 }
 
@@ -76,26 +75,27 @@ fn set(
   key: BitArray,
   val: BitArray,
   life_time: Option(Int),
-  state: State,
+  cache: Cache,
   get_time: fn() -> Int,
 ) {
   let expires_at = option.map(life_time, fn(t) { get_time() + t })
-  table.insert(state, [#(key, Item(val, expires_at))])
+  cache.set(cache, key, Item(val, expires_at))
   SimpleString("OK")
 }
 
-fn get(key: BitArray, state: State, get_time: fn() -> Int) {
-  let vals = table.lookup(state, key)
-  use <- bool.guard(when: list.is_empty(vals), return: BulkString(None))
-
-  let assert [#(_, Item(val, expires_at))] = vals
-  let now = get_time()
-  case expires_at {
-    None -> BulkString(Some(val))
-    Some(t) if now < t -> BulkString(Some(val))
-    _ -> {
-      table.delete(state, key)
-      BulkString(None)
+fn get(key: BitArray, cache: Cache, get_time: fn() -> Int) -> RespType {
+  case cache.get(cache, key) {
+    Error(_) -> BulkString(None)
+    Ok(Item(val, expires_at)) -> {
+      let now = get_time()
+      case expires_at {
+        None -> BulkString(Some(val))
+        Some(t) if now < t -> BulkString(Some(val))
+        _ -> {
+          table.delete(cache, key)
+          BulkString(None)
+        }
+      }
     }
   }
 }
