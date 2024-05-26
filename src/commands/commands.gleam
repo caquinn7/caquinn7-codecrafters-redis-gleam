@@ -1,6 +1,5 @@
 import binary_utils
 import cache.{type Cache, type Item, Item}
-import carpenter/table
 import commands/parse_error.{
   type ParseError, InvalidArgument, InvalidCommand, Null, PostiveIntegerRequired,
   SyntaxError, WrongNumberOfArguments,
@@ -78,7 +77,7 @@ fn set(
   cache: Cache,
   get_time: fn() -> Int,
 ) {
-  let expires_at = option.map(life_time, fn(t) { get_time() + t })
+  let expires_at = option.map(life_time, fn(time) { get_time() + time })
   cache.set(cache, key, Item(val, expires_at))
   SimpleString("OK")
 }
@@ -90,9 +89,9 @@ fn get(key: BitArray, cache: Cache, get_time: fn() -> Int) -> RespType {
       let now = get_time()
       case expires_at {
         None -> BulkString(Some(val))
-        Some(t) if now < t -> BulkString(Some(val))
+        Some(time) if now < time -> BulkString(Some(val))
         _ -> {
-          table.delete(cache, key)
+          cache.remove(cache, key)
           BulkString(None)
         }
       }

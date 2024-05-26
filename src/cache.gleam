@@ -32,3 +32,7 @@ pub fn get(cache: Cache, key: BitArray) -> Result(Item, Nil) {
   |> list.first
   |> result.map(fn(pair) { pair.1 })
 }
+
+pub fn remove(cache: Cache, key: BitArray) {
+  table.delete(cache, key)
+}

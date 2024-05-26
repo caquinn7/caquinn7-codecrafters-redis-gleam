@@ -13,7 +13,7 @@ pub fn main() {
   // Start an ETS table, an in-memory key-value store which all the TCP
   // connection handling actors can read and write shares state to and from.
   let cache = cache.init()
-  let on_init = fn(_) { #(cache, None) }
+  let on_init = fn(_conn) { #(cache, None) }
 
   // Start the TCP acceptor pool.
   // Each connection will get its own actor to handle Redis requests.
@@ -33,12 +33,12 @@ pub fn loop(msg, cache, conn) {
 }
 
 fn process_msg(msg: BitArray, cache: Cache) {
-  let result = case commands.parse(msg) {
+  let response = case commands.parse(msg) {
     Ok(cmd) -> commands.execute(cmd, cache, time.now)
     Error(err) -> {
       let msg = parse_error.to_string(err)
       SimpleError("ERR " <> msg)
     }
   }
-  resp.encode(result)
+  resp.encode(response)
 }

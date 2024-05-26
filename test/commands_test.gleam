@@ -225,7 +225,7 @@ pub fn parse_set_px_without_val_test() {
   |> test_err(SyntaxError)
 }
 
-// execute
+// execute echo
 
 pub fn execute_echo_test() {
   let input = <<"hello":utf8>>
@@ -235,11 +235,14 @@ pub fn execute_echo_test() {
   |> should.equal(BulkString(Some(input)))
 }
 
+// execute ping
 pub fn execute_ping_test() {
   Ping
   |> commands.execute(cache.init(), fn() { 1 })
   |> should.equal(SimpleString("PONG"))
 }
+
+// execute set
 
 pub fn execute_set_test() {
   let cmd = Set(<<"foo":utf8>>, <<"bar":utf8>>, None)
@@ -267,6 +270,28 @@ pub fn execute_set_px_test() {
   |> should.be_ok
   |> should.equal(Item(val, Some(life_time + now)))
 }
+
+pub fn execute_set_key_exists_test() {
+  let key = <<"foo":utf8>>
+  let get_time = fn() { 1 }
+  let cache = cache.init()
+
+  Set(key, <<"bar":utf8>>, Some(1000))
+  |> commands.execute(cache, get_time)
+  |> should.equal(SimpleString("OK"))
+
+  let val = <<"bat":utf8>>
+
+  Set(key, val, None)
+  |> commands.execute(cache, get_time)
+  |> should.equal(SimpleString("OK"))
+
+  cache.get(cache, key)
+  |> should.be_ok
+  |> should.equal(Item(val, None))
+}
+
+// execute get
 
 pub fn execute_get_key_exists_test() {
   let key = <<"foo":utf8>>
