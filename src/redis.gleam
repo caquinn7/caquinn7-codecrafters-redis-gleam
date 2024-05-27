@@ -1,10 +1,14 @@
+import argv
 import cache.{type Cache}
 import commands/commands
 import commands/parse_error
 import gleam/bytes_builder
+import gleam/dict
 import gleam/erlang/process
+import gleam/list
 import gleam/option.{None}
 import gleam/otp/actor
+import gleam/string
 import glisten.{Packet}
 import resp.{SimpleError}
 import time
@@ -13,6 +17,9 @@ pub fn main() {
   // Start an ETS table, an in-memory key-value store which all the TCP
   // connection handling actors can read and write shares state to and from.
   let cache = cache.init()
+
+  config_set(argv.load().arguments, cache)
+
   let on_init = fn(_conn) { #(cache, None) }
 
   // Start the TCP acceptor pool.
@@ -25,7 +32,26 @@ pub fn main() {
   process.sleep_forever()
 }
 
-pub fn loop(msg, cache, conn) {
+fn config_set(args: List(String), cache: Cache) {
+  args
+  |> list.sized_chunk(2)
+  |> list.filter_map(fn(strs) {
+    case strs {
+      [s1, s2] -> {
+        case string.starts_with(s1, "--") {
+          True -> Ok(#(string.drop_left(s1, 2), s2))
+          False -> Error(Nil)
+        }
+      }
+      _ -> Error(Nil)
+    }
+  })
+  |> dict.from_list
+  |> commands.ConfigSet
+  |> commands.execute(cache, time.now)
+}
+
+fn loop(msg, cache, conn) {
   let assert Packet(msg_bits) = msg
   let response = process_msg(msg_bits, cache)
   let assert Ok(_) = glisten.send(conn, bytes_builder.from_bit_array(response))

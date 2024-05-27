@@ -45,5 +45,8 @@ with open_conn() as sock:
 
 with open_conn() as sock:
     test(sock, '*2\r\n$3\r\nGET\r\n$3\r\nfoo\r\n', '$3\r\nbar\r\n')
-
+    # test(sock, '*3\r\n$6\r\nCONFIG\r\n$3\r\nGET\r\n$3\r\ndir\r\n', '*2\r\n$3\r\ndir\r\n$39\r\n/Users/caquinn/codecrafters-redis-gleam\r\n')
+    # test(sock, '*4\r\n$6\r\nCONFIG\r\n$3\r\nGET\r\n$3\r\ndir\r\n$10\r\ndbfilename\r\n',
+    #      '*4\r\n$3\r\ndir\r\n$39\r\n/Users/caquinn/codecrafters-redis-gleam\r\n$10\r\ndbfilename\r\n$8\r\ndump.rdb\r\n')
+# ./spawn_redis_server.sh --dir /Users/caquinn/codecrafters-redis-gleam --dbfilename dump.rdb
     
