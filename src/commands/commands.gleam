@@ -5,6 +5,7 @@ import commands/parse_error.{
   SyntaxError, WrongNumberOfArguments,
 }
 import gleam/bit_array
+import gleam/dict.{type Dict}
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
@@ -12,51 +13,24 @@ import gleam/string
 import resp.{type RespType, Array, BulkString, Parsed, SimpleString}
 
 pub type Command {
-  Echo(BitArray)
-  Get(BitArray)
   Ping
+  Echo(BitArray)
   Set(BitArray, BitArray, Option(Int))
+  Get(BitArray)
+  ConfigSet(Dict(String, String))
+  ConfigGet(List(String))
 }
 
 pub fn parse(input: BitArray) -> Result(Command, ParseError) {
-  use #(cmd, rest) <- result.try(validate_input(input))
+  use bit_arrays <- result.try(validate_input(input))
+  let assert [Some(first), ..rest] = bit_arrays
+  use cmd <- result.try(parse_utf8(first))
   case string.uppercase(cmd) {
-    "ECHO" ->
-      case rest {
-        [Some(bits)] -> Ok(Echo(bits))
-        [None] -> Error(InvalidArgument("message", Null))
-        _ -> Error(WrongNumberOfArguments)
-      }
-    "PING" ->
-      case rest {
-        [] -> Ok(Ping)
-        _ -> Error(WrongNumberOfArguments)
-      }
-    "GET" ->
-      case rest {
-        [Some(bits)] -> Ok(Get(bits))
-        [None] -> Error(InvalidArgument("key", Null))
-        _ -> Error(WrongNumberOfArguments)
-      }
-    "SET" ->
-      case rest {
-        [None, _, ..] -> Error(InvalidArgument("key", Null))
-        [_, None, ..] -> Error(InvalidArgument("value", Null))
-        [Some(key), Some(val)] -> Ok(Set(key, val, None))
-        [Some(key), Some(val), Some(arg), Some(arg_val)] -> {
-          case arg {
-            <<"PX":utf8>> | <<"px":utf8>> -> {
-              use millisecs <- result.try(result.replace_error(
-                parse_positive_int(arg_val),
-                InvalidArgument("PX", PostiveIntegerRequired),
-              ))
-              Ok(Set(key, val, Some(millisecs)))
-            }
-            _ -> Error(SyntaxError)
-          }
-        }
-        _ -> Error(SyntaxError)
-      }
+    "PING" -> parse_ping(rest)
+    "ECHO" -> parse_echo(rest)
+    "SET" -> parse_set(rest)
+    "GET" -> parse_get(rest)
+    "CONFIG" -> parse_config(rest)
     _ -> Error(InvalidCommand(cmd))
   }
 }
@@ -65,8 +39,77 @@ pub fn execute(cmd: Command, cache: Cache, get_time: fn() -> Int) -> RespType {
   case cmd {
     Ping -> SimpleString("PONG")
     Echo(msg) -> BulkString(Some(msg))
-    Get(key) -> get(key, cache, get_time)
     Set(key, val, life_time) -> set(key, val, life_time, cache, get_time)
+    Get(key) -> get(key, cache, get_time)
+    ConfigSet(pairs) -> config_set(pairs, cache, get_time)
+    ConfigGet(keys) -> config_get(keys, cache, get_time)
+  }
+}
+
+fn parse_ping(optional_bit_arrays) {
+  case optional_bit_arrays {
+    [] -> Ok(Ping)
+    _ -> Error(WrongNumberOfArguments)
+  }
+}
+
+fn parse_echo(option_bit_arrays) {
+  case option_bit_arrays {
+    [Some(bits)] -> Ok(Echo(bits))
+    [None] -> Error(InvalidArgument("message", Null))
+    _ -> Error(WrongNumberOfArguments)
+  }
+}
+
+fn parse_get(optional_bit_arrays) {
+  case optional_bit_arrays {
+    [Some(bits)] -> Ok(Get(bits))
+    [None] -> Error(InvalidArgument("key", Null))
+    _ -> Error(WrongNumberOfArguments)
+  }
+}
+
+fn parse_set(optional_bit_arrays) {
+  case optional_bit_arrays {
+    [None, _, ..] -> Error(InvalidArgument("key", Null))
+    [_, None, ..] -> Error(InvalidArgument("value", Null))
+    [Some(key), Some(val)] -> Ok(Set(key, val, None))
+    [Some(key), Some(val), Some(arg), Some(arg_val)] -> {
+      case arg {
+        <<"PX":utf8>> | <<"px":utf8>> -> {
+          use millisecs <- result.try(parse_positive_int(arg_val, "PX"))
+          Ok(Set(key, val, Some(millisecs)))
+        }
+        _ -> Error(SyntaxError)
+      }
+    }
+    _ -> Error(SyntaxError)
+  }
+}
+
+fn parse_config(optional_bit_arrays) {
+  use bit_arrays <- result.try(
+    optional_bit_arrays
+    |> option.all
+    |> option.to_result(SyntaxError),
+  )
+  use args <- result.try(
+    bit_arrays
+    |> list.map(parse_utf8)
+    |> result.all,
+  )
+  case args {
+    [] -> Error(WrongNumberOfArguments)
+    [subcommand, ..rest] -> {
+      case string.uppercase(subcommand) {
+        "GET" ->
+          case rest {
+            [] -> Error(WrongNumberOfArguments)
+            [_, ..] -> Ok(ConfigGet(rest))
+          }
+        _ -> Error(SyntaxError)
+      }
+    }
   }
 }
 
@@ -99,6 +142,28 @@ fn get(key: BitArray, cache: Cache, get_time: fn() -> Int) -> RespType {
   }
 }
 
+fn config_set(pairs: Dict(String, String), cache: Cache, get_time: fn() -> Int) {
+  let to_set_cmd = fn(pair: #(String, String)) {
+    let key = <<{ "config:" <> pair.0 }:utf8>>
+    Set(key, <<{ pair.1 }:utf8>>, None)
+  }
+  pairs
+  |> dict.to_list
+  |> list.map(to_set_cmd)
+  |> list.map(execute(_, cache, get_time))
+  SimpleString("OK")
+}
+
+fn config_get(keys: List(String), cache: Cache, get_time: fn() -> Int) {
+  keys
+  |> list.flat_map(fn(key) {
+    let cmd = Get(<<{ "config:" <> key }:utf8>>)
+    let resp_val = execute(cmd, cache, get_time)
+    [BulkString(Some(<<key:utf8>>)), resp_val]
+  })
+  |> Array
+}
+
 fn validate_input(input: BitArray) {
   let validate_resp =
     input
@@ -114,28 +179,23 @@ fn validate_input(input: BitArray) {
     }
   }
 
-  let validate_first_element_is_utf8 = fn(elements) {
+  let validate_first_is_not_none = fn(elements) {
     case elements {
-      [Some(element), ..rest] ->
-        case bit_array.to_string(element) {
-          Ok(s) -> Ok(#(s, rest))
-          Error(_) -> Error(SyntaxError)
-        }
+      [Some(_), ..] -> Ok(elements)
       _ -> Error(SyntaxError)
     }
   }
 
   resp_value
   |> unwrap_bulk_strings
-  |> result.replace_error(SyntaxError)
   |> result.try(validate_not_empty)
-  |> result.try(validate_first_element_is_utf8)
+  |> result.try(validate_first_is_not_none)
 }
 
 fn unwrap_bulk_strings(resp_value: RespType) {
   use resp_values <- result.try(case resp_value {
     Array([v, ..vs]) -> Ok([v, ..vs])
-    _ -> Error(Nil)
+    _ -> Error(SyntaxError)
   })
 
   let is_bulk_string = fn(v) {
@@ -156,14 +216,24 @@ fn unwrap_bulk_strings(resp_value: RespType) {
       resp_values
       |> to_bulk_string_list
       |> Ok
-    False -> Error(Nil)
+    False -> Error(SyntaxError)
   }
 }
 
-fn parse_positive_int(bits: BitArray) {
-  use i <- result.try(binary_utils.binary_to_int(bits))
-  case i > 1 {
-    True -> Ok(i)
-    False -> Error(Nil)
+fn parse_utf8(bits: BitArray) {
+  bits
+  |> bit_array.to_string
+  |> result.replace_error(SyntaxError)
+}
+
+fn parse_positive_int(bits: BitArray, arg_name: String) {
+  bits
+  |> binary_utils.binary_to_int
+  |> result.unwrap(0)
+  |> fn(i) {
+    case i > 1 {
+      True -> Ok(i)
+      False -> Error(InvalidArgument(arg_name, PostiveIntegerRequired))
+    }
   }
 }

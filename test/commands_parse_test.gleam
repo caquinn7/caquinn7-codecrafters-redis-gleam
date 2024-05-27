@@ -1,7 +1,4 @@
-import cache.{Item}
-
-// import carpenter/table
-import commands/commands.{Echo, Get, Ping, Set}
+import commands/commands.{ConfigGet, Echo, Get, Ping, Set}
 import commands/parse_error.{
   InvalidArgument, InvalidCommand, Null, PostiveIntegerRequired, SyntaxError,
   WrongNumberOfArguments,
@@ -10,13 +7,11 @@ import gleam/int
 import gleam/option.{None, Some}
 import gleeunit
 import gleeunit/should
-import resp.{Array, BulkString, SimpleString}
+import resp.{Array, BulkString}
 
 pub fn main() {
   gleeunit.main()
 }
-
-// parse
 
 pub fn parse_empty_test() {
   Array([])
@@ -35,6 +30,22 @@ pub fn parse_invalid_command_test() {
   |> resp.encode
   |> test_err(InvalidCommand("HELLO"))
 }
+
+// ping
+
+pub fn parse_ping_test() {
+  Array([BulkString(Some(<<"PING":utf8>>))])
+  |> resp.encode
+  |> test_ok(Ping)
+}
+
+pub fn parse_ping_with_arg_test() {
+  Array([BulkString(Some(<<"PING":utf8>>)), BulkString(Some(<<>>))])
+  |> resp.encode
+  |> test_err(WrongNumberOfArguments)
+}
+
+// echo
 
 pub fn parse_echo_test() {
   let msg = <<"hey":utf8>>
@@ -62,46 +73,7 @@ pub fn parse_echo_null_message_test() {
   |> test_err(InvalidArgument("message", Null))
 }
 
-pub fn parse_ping_test() {
-  Array([BulkString(Some(<<"PING":utf8>>))])
-  |> resp.encode
-  |> test_ok(Ping)
-}
-
-pub fn parse_ping_with_arg_test() {
-  Array([BulkString(Some(<<"PING":utf8>>)), BulkString(Some(<<>>))])
-  |> resp.encode
-  |> test_err(WrongNumberOfArguments)
-}
-
-pub fn parse_get_test() {
-  let key = <<"a_key":utf8>>
-  Array([BulkString(Some(<<"GET":utf8>>)), BulkString(Some(key))])
-  |> resp.encode
-  |> test_ok(Get(key))
-}
-
-pub fn parse_get_null_key_test() {
-  Array([BulkString(Some(<<"GET":utf8>>)), BulkString(None)])
-  |> resp.encode
-  |> test_err(InvalidArgument("key", Null))
-}
-
-pub fn parse_get_no_arg_test() {
-  Array([BulkString(Some(<<"GET":utf8>>))])
-  |> resp.encode
-  |> test_err(WrongNumberOfArguments)
-}
-
-pub fn parse_get_two_args_test() {
-  Array([
-    BulkString(Some(<<"GET":utf8>>)),
-    BulkString(Some(<<"a_key":utf8>>)),
-    BulkString(Some(<<>>)),
-  ])
-  |> resp.encode
-  |> test_err(WrongNumberOfArguments)
-}
+// set
 
 pub fn parse_set_no_expiration_test() {
   let key = <<"a_key":utf8>>
@@ -225,105 +197,90 @@ pub fn parse_set_px_without_val_test() {
   |> test_err(SyntaxError)
 }
 
-// execute echo
+// get
 
-pub fn execute_echo_test() {
-  let input = <<"hello":utf8>>
-  input
-  |> Echo
-  |> commands.execute(cache.init(), fn() { 1 })
-  |> should.equal(BulkString(Some(input)))
+pub fn parse_get_test() {
+  let key = <<"a_key":utf8>>
+  Array([BulkString(Some(<<"GET":utf8>>)), BulkString(Some(key))])
+  |> resp.encode
+  |> test_ok(Get(key))
 }
 
-// execute ping
-pub fn execute_ping_test() {
-  Ping
-  |> commands.execute(cache.init(), fn() { 1 })
-  |> should.equal(SimpleString("PONG"))
+pub fn parse_get_null_key_test() {
+  Array([BulkString(Some(<<"GET":utf8>>)), BulkString(None)])
+  |> resp.encode
+  |> test_err(InvalidArgument("key", Null))
 }
 
-// execute set
-
-pub fn execute_set_test() {
-  let cmd = Set(<<"foo":utf8>>, <<"bar":utf8>>, None)
-  let assert Set(key, val, _) = cmd
-  let cache = cache.init()
-
-  commands.execute(cmd, cache, fn() { 1 })
-  |> should.equal(SimpleString("OK"))
-
-  cache.get(cache, key)
-  |> should.be_ok
-  |> should.equal(Item(val, None))
+pub fn parse_get_no_arg_test() {
+  Array([BulkString(Some(<<"GET":utf8>>))])
+  |> resp.encode
+  |> test_err(WrongNumberOfArguments)
 }
 
-pub fn execute_set_px_test() {
-  let cmd = Set(<<"foo":utf8>>, <<"bar":utf8>>, Some(1000))
-  let assert Set(key, val, Some(life_time)) = cmd
-  let now = 1
-  let cache = cache.init()
-
-  commands.execute(cmd, cache, fn() { now })
-  |> should.equal(SimpleString("OK"))
-
-  cache.get(cache, key)
-  |> should.be_ok
-  |> should.equal(Item(val, Some(life_time + now)))
+pub fn parse_get_two_args_test() {
+  Array([
+    BulkString(Some(<<"GET":utf8>>)),
+    BulkString(Some(<<"a_key":utf8>>)),
+    BulkString(Some(<<>>)),
+  ])
+  |> resp.encode
+  |> test_err(WrongNumberOfArguments)
 }
 
-pub fn execute_set_key_exists_test() {
-  let key = <<"foo":utf8>>
-  let get_time = fn() { 1 }
-  let cache = cache.init()
+// config
 
-  Set(key, <<"bar":utf8>>, Some(1000))
-  |> commands.execute(cache, get_time)
-  |> should.equal(SimpleString("OK"))
-
-  let val = <<"bat":utf8>>
-
-  Set(key, val, None)
-  |> commands.execute(cache, get_time)
-  |> should.equal(SimpleString("OK"))
-
-  cache.get(cache, key)
-  |> should.be_ok
-  |> should.equal(Item(val, None))
+pub fn parse_config_no_subcommand_test() {
+  Array([BulkString(Some(<<"CONFIG":utf8>>))])
+  |> resp.encode
+  |> test_err(WrongNumberOfArguments)
 }
 
-// execute get
-
-pub fn execute_get_key_exists_test() {
-  let key = <<"foo":utf8>>
-  let val = <<"bar":utf8>>
-
-  let cache = cache.init()
-  cache.set(cache, key, Item(val, None))
-
-  commands.execute(Get(key), cache, fn() { 1 })
-  |> should.equal(BulkString(Some(val)))
-
-  cache.get(cache, key)
-  |> should.be_ok
-  |> should.equal(Item(val, None))
+pub fn parse_config_invalid_subcommand_test() {
+  Array([BulkString(Some(<<"CONFIG":utf8>>)), BulkString(Some(<<"XXX":utf8>>))])
+  |> resp.encode
+  |> test_err(SyntaxError)
 }
 
-pub fn execute_get_key_does_not_exist_test() {
-  commands.execute(Get(<<"foo":utf8>>), cache.init(), fn() { 1 })
-  |> should.equal(BulkString(None))
+pub fn parse_config_null_test() {
+  Array([BulkString(Some(<<"CONFIG":utf8>>)), BulkString(None)])
+  |> resp.encode
+  |> test_err(SyntaxError)
 }
 
-pub fn execute_get_key_expired_test() {
-  let key = <<"foo":utf8>>
-  let cache = cache.init()
-  cache.set(cache, key, Item(<<"foo":utf8>>, Some(1)))
+pub fn parse_config_not_utf8_test() {
+  Array([BulkString(Some(<<"CONFIG":utf8>>)), BulkString(Some(<<"GET":utf16>>))])
+  |> resp.encode
+  |> test_err(SyntaxError)
+}
 
-  commands.execute(Get(key), cache, fn() { 2 })
-  |> should.equal(BulkString(None))
+// config get
 
-  cache.get(cache, key)
-  |> should.be_error
-  |> should.equal(Nil)
+pub fn parse_config_get_test() {
+  Array([
+    BulkString(Some(<<"CONFIG":utf8>>)),
+    BulkString(Some(<<"GET":utf8>>)),
+    BulkString(Some(<<"key":utf8>>)),
+  ])
+  |> resp.encode
+  |> test_ok(ConfigGet(["key"]))
+}
+
+pub fn parse_config_get_multiple_args_test() {
+  Array([
+    BulkString(Some(<<"CONFIG":utf8>>)),
+    BulkString(Some(<<"GET":utf8>>)),
+    BulkString(Some(<<"key1":utf8>>)),
+    BulkString(Some(<<"key2":utf8>>)),
+  ])
+  |> resp.encode
+  |> test_ok(ConfigGet(["key1", "key2"]))
+}
+
+pub fn parse_config_get_no_args_test() {
+  Array([BulkString(Some(<<"CONFIG":utf8>>)), BulkString(Some(<<"GET":utf8>>))])
+  |> resp.encode
+  |> test_err(WrongNumberOfArguments)
 }
 
 pub fn test_ok(input, expected) {
