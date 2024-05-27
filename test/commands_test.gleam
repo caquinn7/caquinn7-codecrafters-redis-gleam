@@ -1,11 +1,10 @@
 import cache.{Item}
-
-// import carpenter/table
-import commands/commands.{Echo, Get, Ping, Set}
+import commands/commands.{ConfigGet, ConfigSet, Echo, Get, Ping, Set}
 import commands/parse_error.{
   InvalidArgument, InvalidCommand, Null, PostiveIntegerRequired, SyntaxError,
   WrongNumberOfArguments,
 }
+import gleam/dict
 import gleam/int
 import gleam/option.{None, Some}
 import gleeunit
@@ -36,6 +35,8 @@ pub fn parse_invalid_command_test() {
   |> test_err(InvalidCommand("HELLO"))
 }
 
+// parse // echo
+
 pub fn parse_echo_test() {
   let msg = <<"hey":utf8>>
   Array([BulkString(Some(<<"ECHO":utf8>>)), BulkString(Some(msg))])
@@ -62,6 +63,8 @@ pub fn parse_echo_null_message_test() {
   |> test_err(InvalidArgument("message", Null))
 }
 
+// parse // ping
+
 pub fn parse_ping_test() {
   Array([BulkString(Some(<<"PING":utf8>>))])
   |> resp.encode
@@ -73,6 +76,8 @@ pub fn parse_ping_with_arg_test() {
   |> resp.encode
   |> test_err(WrongNumberOfArguments)
 }
+
+// parse // get
 
 pub fn parse_get_test() {
   let key = <<"a_key":utf8>>
@@ -102,6 +107,8 @@ pub fn parse_get_two_args_test() {
   |> resp.encode
   |> test_err(WrongNumberOfArguments)
 }
+
+// parse // set
 
 pub fn parse_set_no_expiration_test() {
   let key = <<"a_key":utf8>>
@@ -225,7 +232,7 @@ pub fn parse_set_px_without_val_test() {
   |> test_err(SyntaxError)
 }
 
-// execute echo
+// execute // echo
 
 pub fn execute_echo_test() {
   let input = <<"hello":utf8>>
@@ -235,14 +242,14 @@ pub fn execute_echo_test() {
   |> should.equal(BulkString(Some(input)))
 }
 
-// execute ping
+// execute // ping
 pub fn execute_ping_test() {
   Ping
   |> commands.execute(cache.init(), fn() { 1 })
   |> should.equal(SimpleString("PONG"))
 }
 
-// execute set
+// execute // set
 
 pub fn execute_set_test() {
   let cmd = Set(<<"foo":utf8>>, <<"bar":utf8>>, None)
@@ -291,7 +298,7 @@ pub fn execute_set_key_exists_test() {
   |> should.equal(Item(val, None))
 }
 
-// execute get
+// execute // get
 
 pub fn execute_get_key_exists_test() {
   let key = <<"foo":utf8>>
@@ -324,6 +331,50 @@ pub fn execute_get_key_expired_test() {
   cache.get(cache, key)
   |> should.be_error
   |> should.equal(Nil)
+}
+
+// execute // config set
+
+pub fn execute_config_set_test() {
+  let cache = cache.init()
+
+  let pairs =
+    [#("key1", "val1"), #("key2", "val2")]
+    |> dict.from_list()
+
+  commands.execute(ConfigSet(pairs), cache, fn() { 1 })
+  |> should.equal(SimpleString("OK"))
+
+  cache.get(cache, <<"config:key1":utf8>>)
+  |> should.be_ok
+  |> should.equal(Item(<<"val1":utf8>>, None))
+
+  cache.get(cache, <<"config:key2":utf8>>)
+  |> should.be_ok
+  |> should.equal(Item(<<"val2":utf8>>, None))
+}
+
+// execute // config get
+
+pub fn execute_config_get_test() {
+  let cache = cache.init()
+
+  let pairs =
+    [#("key1", "val1"), #("key2", "val2")]
+    |> dict.from_list()
+
+  commands.execute(ConfigSet(pairs), cache, fn() { 1 })
+  |> should.equal(SimpleString("OK"))
+
+  commands.execute(ConfigGet(dict.keys(pairs)), cache, fn() { 1 })
+  |> should.equal(
+    Array([
+      BulkString(Some(<<"key1":utf8>>)),
+      BulkString(Some(<<"val1":utf8>>)),
+      BulkString(Some(<<"key2":utf8>>)),
+      BulkString(Some(<<"val2":utf8>>)),
+    ]),
+  )
 }
 
 pub fn test_ok(input, expected) {
