@@ -1,5 +1,5 @@
 import cache.{Item}
-import commands/commands.{ConfigGet, ConfigSet, Echo, Get, Ping, Set}
+import commands/commands.{ConfigGet, ConfigSet, Echo, Get, Keys, Ping, Set}
 import gleam/dict
 import gleam/option.{None, Some}
 import gleeunit
@@ -110,6 +110,17 @@ pub fn execute_get_key_expired_test() {
   cache.get(cache, key)
   |> should.be_error
   |> should.equal(Nil)
+}
+
+// get keys
+
+pub fn execute_keys_test() {
+  let cache = cache.init()
+  cache.set(cache, <<"key1":utf8>>, Item(<<"val1":utf8>>, None))
+
+  Keys("*")
+  |> commands.execute(cache, fn() { 1 })
+  |> should.equal(Array([BulkString(Some(<<"key1":utf8>>))]))
 }
 
 // config set
