@@ -8,6 +8,7 @@ pub type ParseError {
   InvalidCommand(command: String)
   InvalidArgument(name: String, reason: InvalidArgumentReason)
   WrongNumberOfArguments
+  NotImplemented(String)
 }
 
 pub fn to_string(parse_err: ParseError) {
@@ -22,5 +23,6 @@ pub fn to_string(parse_err: ParseError) {
       "Invalid value for \"" <> name <> "\": " <> reason_str
     }
     WrongNumberOfArguments -> "Wrong number of arguments"
+    NotImplemented(str) -> str
   }
 }

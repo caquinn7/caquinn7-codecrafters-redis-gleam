@@ -3,23 +3,30 @@ import cache.{type Cache}
 import commands/commands
 import commands/parse_error
 import gleam/bytes_builder
-import gleam/dict
+import gleam/dict.{type Dict}
 import gleam/erlang/process
+import gleam/io
 import gleam/list
 import gleam/option.{None}
 import gleam/otp/actor
+import gleam/result
 import gleam/string
 import glisten.{Packet}
+import rdb
 import resp.{SimpleError}
 import time
 
 pub fn main() {
+  let args = args_to_dict(argv.load().arguments)
+
   // Start an ETS table, an in-memory key-value store which all the TCP
   // connection handling actors can read and write shares state to and from.
-  let cache = cache.init()
+  let cache = init_cache(args)
 
   // Store config settings passed as cli args on startup
-  config_set(argv.load().arguments, cache)
+  args
+  |> commands.ConfigSet
+  |> commands.execute(cache, time.now)
 
   let on_init = fn(_conn) { #(cache, None) }
 
@@ -33,7 +40,7 @@ pub fn main() {
   process.sleep_forever()
 }
 
-fn config_set(args: List(String), cache: Cache) {
+fn args_to_dict(args: List(String)) {
   args
   |> list.sized_chunk(2)
   |> list.filter_map(fn(strs) {
@@ -48,8 +55,29 @@ fn config_set(args: List(String), cache: Cache) {
     }
   })
   |> dict.from_list
-  |> commands.ConfigSet
-  |> commands.execute(cache, time.now)
+}
+
+fn init_cache(args: Dict(String, String)) {
+  let rdb_path_result = fn(args) {
+    use dir <- result.try(dict.get(args, "dir"))
+    use filename <- result.try(dict.get(args, "dbfilename"))
+    Ok(dir <> "/" <> filename)
+  }
+
+  case rdb_path_result(args) {
+    Ok(path) -> {
+      let rdb_result = rdb.parse(path)
+      case rdb_result {
+        Ok(rdb) -> cache.from_rdb(rdb)
+        Error(err) -> {
+          io.debug("Error parsing rdb file at '" <> path <> "':")
+          io.debug(err)
+          cache.init()
+        }
+      }
+    }
+    Error(Nil) -> cache.init()
+  }
 }
 
 fn loop(msg, cache, conn) {

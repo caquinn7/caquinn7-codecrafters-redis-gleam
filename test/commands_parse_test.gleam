@@ -1,4 +1,4 @@
-import commands/commands.{ConfigGet, Echo, Get, Ping, Set}
+import commands/commands.{ConfigGet, Echo, Get, Keys, Ping, Set}
 import commands/parse_error.{
   InvalidArgument, InvalidCommand, Null, PostiveIntegerRequired, SyntaxError,
   WrongNumberOfArguments,
@@ -249,7 +249,7 @@ pub fn parse_config_null_test() {
 }
 
 pub fn parse_config_not_utf8_test() {
-  Array([BulkString(Some(<<"CONFIG":utf8>>)), BulkString(Some(<<"GET":utf16>>))])
+  Array([BulkString(Some(<<"CONFIG":utf8>>)), BulkString(Some(<<192, 128>>))])
   |> resp.encode
   |> test_err(SyntaxError)
 }
@@ -281,6 +281,46 @@ pub fn parse_config_get_no_args_test() {
   Array([BulkString(Some(<<"CONFIG":utf8>>)), BulkString(Some(<<"GET":utf8>>))])
   |> resp.encode
   |> test_err(WrongNumberOfArguments)
+}
+
+// keys
+
+pub fn parse_keys_no_arg_test() {
+  Array([BulkString(Some(<<"KEYS":utf8>>))])
+  |> resp.encode
+  |> test_err(WrongNumberOfArguments)
+}
+
+pub fn parse_keys_two_args_test() {
+  Array([
+    BulkString(Some(<<"KEYS":utf8>>)),
+    BulkString(Some(<<"\"x\"":utf8>>)),
+    BulkString(Some(<<"\"y\"":utf8>>)),
+  ])
+  |> resp.encode
+  |> test_err(WrongNumberOfArguments)
+}
+
+pub fn parse_keys_null_arg_test() {
+  Array([BulkString(Some(<<"KEYS":utf8>>)), BulkString(None)])
+  |> resp.encode
+  |> test_err(InvalidArgument("pattern", Null))
+}
+
+pub fn parse_keys_arg_is_not_utf8_test() {
+  // overlong encoding of the null character (U+0000), which is invalid in UTF-8
+  Array([
+    BulkString(Some(<<"KEYS":utf8>>)),
+    BulkString(Some(<<"\"":utf8, 192, 128, "\"":utf8>>)),
+  ])
+  |> resp.encode
+  |> test_err(SyntaxError)
+}
+
+pub fn parse_keys_arg_is_utf8_test() {
+  Array([BulkString(Some(<<"KEYS":utf8>>)), BulkString(Some(<<"*":utf8>>))])
+  |> resp.encode
+  |> test_ok(Keys("*"))
 }
 
 pub fn test_ok(input, expected) {
