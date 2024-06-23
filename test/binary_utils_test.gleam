@@ -42,21 +42,35 @@ pub fn binary_to_int_empty_test() {
 }
 
 pub fn binary_to_int_integer_bytes_test() {
-  <<1:int-size(8)>>
+  <<1>>
   |> binary_utils.binary_to_int
   |> should.be_error
   |> should.equal(Nil)
 }
 
-pub fn decode_unsigned_int_test() {
-  <<1:int-size(8)>>
+pub fn decode_unsigned_int_one_byte_test() {
+  <<1>>
   |> binary_utils.decode_unsigned_int(Big)
   |> should.be_ok
   |> should.equal(1)
 }
 
+pub fn decode_unsigned_int_big_endian_two_bytes_test() {
+  <<1, 0>>
+  |> binary_utils.decode_unsigned_int(Big)
+  |> should.be_ok
+  |> should.equal(256)
+}
+
+pub fn decode_unsigned_int_little_endian_two_bytes_test() {
+  <<1, 0>>
+  |> binary_utils.decode_unsigned_int(Little)
+  |> should.be_ok
+  |> should.equal(1)
+}
+
 pub fn decode_unsigned_int_not_byte_aligned_test() {
-  <<1:int-size(9)>>
+  <<1:size(9)>>
   |> binary_utils.decode_unsigned_int(Big)
   |> should.be_error
   |> should.equal(Nil)

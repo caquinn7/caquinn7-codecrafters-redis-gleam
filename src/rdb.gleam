@@ -82,7 +82,6 @@ pub fn parse_length_encoded_int(
   input: BitArray,
 ) -> Result(#(Int, BitArray), RdbError) {
   let parse_encoded_int = fn(int_bits, endianness, rest) {
-    // should only be error if arg was not byte-aligned
     let assert Ok(len) = binary_utils.decode_unsigned_int(int_bits, endianness)
     Ok(#(len, rest))
   }
@@ -157,7 +156,6 @@ pub fn parse_encoded_string(
   input: BitArray,
 ) -> Result(#(BitArray, BitArray), RdbError) {
   let parse_len_prefixed_str = fn(len_bits, endianness, rest) {
-    // should only be error if arg was not byte-aligned
     let assert Ok(len) = binary_utils.decode_unsigned_int(len_bits, endianness)
     use str_bytes <- result.try(
       rest
