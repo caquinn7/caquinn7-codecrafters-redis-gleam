@@ -1,13 +1,14 @@
 import binary_utils
 import cache.{type Cache, type Item, Item}
 import commands/parse_error.{
-  type ParseError, InvalidArgument, InvalidCommand, Null, PostiveIntegerRequired,
-  SyntaxError, WrongNumberOfArguments,
+  type ParseError, InvalidArgument, InvalidCommand, NotImplemented, Null,
+  PostiveIntegerRequired, SyntaxError, WrongNumberOfArguments,
 }
 import gleam/bit_array
 import gleam/dict.{type Dict}
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/regex.{Match}
 import gleam/result
 import gleam/string
 import resp.{type RespType, Array, BulkString, Parsed, SimpleString}
@@ -19,6 +20,7 @@ pub type Command {
   Get(BitArray)
   ConfigSet(Dict(String, String))
   ConfigGet(List(String))
+  Keys(String)
 }
 
 pub fn parse(input: BitArray) -> Result(Command, ParseError) {
@@ -31,6 +33,7 @@ pub fn parse(input: BitArray) -> Result(Command, ParseError) {
     "SET" -> parse_set(rest)
     "GET" -> parse_get(rest)
     "CONFIG" -> parse_config(rest)
+    "KEYS" -> parse_keys(rest)
     _ -> Error(InvalidCommand(cmd))
   }
 }
@@ -43,34 +46,35 @@ pub fn execute(cmd: Command, cache: Cache, get_time: fn() -> Int) -> RespType {
     Get(key) -> get(key, cache, get_time)
     ConfigSet(pairs) -> config_set(pairs, cache, get_time)
     ConfigGet(keys) -> config_get(keys, cache, get_time)
+    Keys(pattern) -> keys(pattern, cache)
   }
 }
 
-fn parse_ping(optional_bit_arrays) {
-  case optional_bit_arrays {
+fn parse_ping(bit_array_options) {
+  case bit_array_options {
     [] -> Ok(Ping)
     _ -> Error(WrongNumberOfArguments)
   }
 }
 
-fn parse_echo(option_bit_arrays) {
-  case option_bit_arrays {
+fn parse_echo(bit_array_options) {
+  case bit_array_options {
     [Some(bits)] -> Ok(Echo(bits))
     [None] -> Error(InvalidArgument("message", Null))
     _ -> Error(WrongNumberOfArguments)
   }
 }
 
-fn parse_get(optional_bit_arrays) {
-  case optional_bit_arrays {
+fn parse_get(bit_array_options) {
+  case bit_array_options {
     [Some(bits)] -> Ok(Get(bits))
     [None] -> Error(InvalidArgument("key", Null))
     _ -> Error(WrongNumberOfArguments)
   }
 }
 
-fn parse_set(optional_bit_arrays) {
-  case optional_bit_arrays {
+fn parse_set(bit_array_options) {
+  case bit_array_options {
     [None, _, ..] -> Error(InvalidArgument("key", Null))
     [_, None, ..] -> Error(InvalidArgument("value", Null))
     [Some(key), Some(val)] -> Ok(Set(key, val, None))
@@ -87,9 +91,9 @@ fn parse_set(optional_bit_arrays) {
   }
 }
 
-fn parse_config(optional_bit_arrays) {
+fn parse_config(bit_array_options) {
   use bit_arrays <- result.try(
-    optional_bit_arrays
+    bit_array_options
     |> option.all
     |> option.to_result(SyntaxError),
   )
@@ -113,6 +117,27 @@ fn parse_config(optional_bit_arrays) {
   }
 }
 
+fn parse_keys(bit_array_options: List(Option(BitArray))) {
+  case bit_array_options {
+    [] | [_, _, ..] -> Error(WrongNumberOfArguments)
+    [None] -> Error(InvalidArgument("pattern", Null))
+    [Some(pattern)] -> {
+      case bit_array.to_string(pattern) {
+        Error(_) -> Error(SyntaxError)
+        Ok(str) -> {
+          let assert Ok(re) = regex.from_string("^\"([^\"]*)\"$")
+          case regex.scan(re, str) {
+            [Match(_, [Some("*")])] -> Ok(Keys("*"))
+            [Match(_, [Some(_)])] ->
+              Error(NotImplemented("Only wildcard (\"*\") pattern is supported"))
+            _ -> Error(SyntaxError)
+          }
+        }
+      }
+    }
+  }
+}
+
 fn set(
   key: BitArray,
   val: BitArray,
@@ -125,7 +150,7 @@ fn set(
   SimpleString("OK")
 }
 
-fn get(key: BitArray, cache: Cache, get_time: fn() -> Int) -> RespType {
+fn get(key: BitArray, cache: Cache, get_time: fn() -> Int) {
   case cache.get(cache, key) {
     Error(_) -> BulkString(None)
     Ok(Item(val, expires_at)) -> {
@@ -161,6 +186,19 @@ fn config_get(keys: List(String), cache: Cache, get_time: fn() -> Int) {
     let resp_val = execute(cmd, cache, get_time)
     [BulkString(Some(<<key:utf8>>)), resp_val]
   })
+  |> Array
+}
+
+fn keys(_pattern: String, cache: Cache) {
+  cache
+  |> cache.get_keys
+  |> list.filter(fn(k) {
+    case k {
+      <<"config:":utf8, _:bits>> -> False
+      _ -> True
+    }
+  })
+  |> list.map(fn(k) { BulkString(Some(k)) })
   |> Array
 }
 
