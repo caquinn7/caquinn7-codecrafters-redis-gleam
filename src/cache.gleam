@@ -39,7 +39,7 @@ pub fn get_keys(cache: Cache) -> List(BitArray) {
   get_all_keys(cache.table.name)
 }
 
-pub fn remove(cache: Cache, key: BitArray) {
+pub fn remove(cache: Cache, key: BitArray) -> Nil {
   table.delete(cache, key)
 }
 
