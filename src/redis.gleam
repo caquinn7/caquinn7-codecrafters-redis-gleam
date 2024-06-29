@@ -14,30 +14,42 @@ import gleam/string
 import glisten.{Packet}
 import rdb
 import resp.{SimpleError}
+import state.{type State, State}
 import time
 
 pub fn main() {
-  let args = args_to_dict(argv.load().arguments)
-
+  let config = args_to_dict(argv.load().arguments)
   // Start an ETS table, an in-memory key-value store which all the TCP
   // connection handling actors can read and write shares state to and from.
-  let cache = init_cache(args)
-
-  // Store config settings passed as cli args on startup
-  args
-  |> commands.ConfigSet
-  |> commands.execute(cache, time.now)
-
-  let on_init = fn(_conn) { #(cache, None) }
+  let cache = init_cache(config)
+  let state = State(config, cache)
 
   // Start the TCP acceptor pool.
   // Each connection will get its own actor to handle Redis requests.
   let assert Ok(_) =
-    glisten.handler(on_init, loop)
+    glisten.handler(fn(_conn) { #(state, None) }, loop)
     |> glisten.serve(6379)
 
   // Suspend the main process while the acceptor pool works.
   process.sleep_forever()
+}
+
+fn loop(msg, state: State, conn) {
+  let assert Packet(msg_bits) = msg
+  let response = process_msg(msg_bits, state)
+  let assert Ok(_) = glisten.send(conn, bytes_builder.from_bit_array(response))
+  actor.continue(state)
+}
+
+fn process_msg(msg: BitArray, state: State) {
+  let response = case commands.parse(msg) {
+    Ok(cmd) -> commands.execute(cmd, state, time.now)
+    Error(err) -> {
+      let msg = parse_error.to_string(err)
+      SimpleError("ERR " <> msg)
+    }
+  }
+  resp.encode(response)
 }
 
 fn args_to_dict(args: List(String)) {
@@ -57,14 +69,14 @@ fn args_to_dict(args: List(String)) {
   |> dict.from_list
 }
 
-fn init_cache(args: Dict(String, String)) {
-  let rdb_path_result = fn(args) {
-    use dir <- result.try(dict.get(args, "dir"))
-    use filename <- result.try(dict.get(args, "dbfilename"))
+fn init_cache(config: Dict(String, String)) -> Cache {
+  let rdb_path = fn() {
+    use dir <- result.try(dict.get(config, "dir"))
+    use filename <- result.try(dict.get(config, "dbfilename"))
     Ok(dir <> "/" <> filename)
   }
-
-  case rdb_path_result(args) {
+  case rdb_path() {
+    Error(_) -> cache.new()
     Ok(path) -> {
       let rdb_result = rdb.parse(path)
       case rdb_result {
@@ -72,28 +84,9 @@ fn init_cache(args: Dict(String, String)) {
         Error(err) -> {
           io.debug("Error parsing rdb file at '" <> path <> "':")
           io.debug(err)
-          cache.init()
+          cache.new()
         }
       }
     }
-    Error(Nil) -> cache.init()
   }
-}
-
-fn loop(msg, cache, conn) {
-  let assert Packet(msg_bits) = msg
-  let response = process_msg(msg_bits, cache)
-  let assert Ok(_) = glisten.send(conn, bytes_builder.from_bit_array(response))
-  actor.continue(cache)
-}
-
-fn process_msg(msg: BitArray, cache: Cache) {
-  let response = case commands.parse(msg) {
-    Ok(cmd) -> commands.execute(cmd, cache, time.now)
-    Error(err) -> {
-      let msg = parse_error.to_string(err)
-      SimpleError("ERR " <> msg)
-    }
-  }
-  resp.encode(response)
 }

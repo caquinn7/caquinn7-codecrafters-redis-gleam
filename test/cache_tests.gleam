@@ -10,7 +10,7 @@ pub fn main() {
 }
 
 pub fn cache_get_keys_test() {
-  let cache = cache.init()
+  let cache = cache.new()
   cache.set(cache, <<"key1":utf8>>, Item(<<"val1":utf8>>, None))
   cache.set(cache, <<"key2":utf8>>, Item(<<"val2":utf8>>, None))
 
@@ -27,7 +27,7 @@ pub fn cache_get_keys_test() {
 }
 
 pub fn cache_get_keys_empty_cache_test() {
-  cache.init()
+  cache.new()
   |> cache.get_keys
   |> should.equal([])
 }

@@ -11,13 +11,13 @@ import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
 import resp.{type RespType, Array, BulkString, Parsed, SimpleString}
+import state.{type State}
 
 pub type Command {
   Ping
   Echo(BitArray)
   Set(BitArray, BitArray, Option(Int))
   Get(BitArray)
-  ConfigSet(Dict(String, String))
   ConfigGet(List(String))
   Keys(String)
 }
@@ -37,15 +37,14 @@ pub fn parse(input: BitArray) -> Result(Command, ParseError) {
   }
 }
 
-pub fn execute(cmd: Command, cache: Cache, get_time: fn() -> Int) -> RespType {
+pub fn execute(cmd: Command, state: State, get_time: fn() -> Int) -> RespType {
   case cmd {
     Ping -> SimpleString("PONG")
     Echo(msg) -> BulkString(Some(msg))
-    Set(key, val, life_time) -> set(key, val, life_time, cache, get_time)
-    Get(key) -> get(key, cache, get_time)
-    ConfigSet(pairs) -> config_set(pairs, cache, get_time)
-    ConfigGet(keys) -> config_get(keys, cache, get_time)
-    Keys(pattern) -> keys(pattern, cache)
+    Set(key, val, life_time) -> set(key, val, life_time, state.cache, get_time)
+    Get(key) -> get(key, state.cache, get_time)
+    ConfigGet(keys) -> config_get(keys, state.config)
+    Keys(pattern) -> keys(pattern, state.cache)
   }
 }
 
@@ -121,15 +120,14 @@ fn parse_keys(bit_array_options: List(Option(BitArray))) {
     [] | [_, _, ..] -> Error(WrongNumberOfArguments)
     [None] -> Error(InvalidArgument("pattern", Null))
     [Some(pattern)] -> {
-      case bit_array.to_string(pattern) {
-        Error(_) -> Error(SyntaxError)
-        Ok(str) -> {
-          case str {
-            "*" -> Ok(Keys(str))
-            _ ->
-              Error(NotImplemented("Only wildcard (\"*\") pattern is supported"))
-          }
-        }
+      use pattern_str <- result.try(
+        pattern
+        |> bit_array.to_string
+        |> result.replace_error(SyntaxError),
+      )
+      case pattern_str {
+        "*" -> Ok(Keys(pattern_str))
+        _ -> Error(NotImplemented("Only wildcard (\"*\") pattern is supported"))
       }
     }
   }
@@ -164,24 +162,17 @@ fn get(key: BitArray, cache: Cache, get_time: fn() -> Int) {
   }
 }
 
-fn config_set(pairs: Dict(String, String), cache: Cache, get_time: fn() -> Int) {
-  let to_set_cmd = fn(pair: #(String, String)) {
-    let key = <<{ "config:" <> pair.0 }:utf8>>
-    Set(key, <<{ pair.1 }:utf8>>, None)
-  }
-  pairs
-  |> dict.to_list
-  |> list.map(to_set_cmd)
-  |> list.map(execute(_, cache, get_time))
-  SimpleString("OK")
-}
-
-fn config_get(keys: List(String), cache: Cache, get_time: fn() -> Int) {
+fn config_get(keys: List(String), config: Dict(String, String)) {
   keys
-  |> list.flat_map(fn(key) {
-    let cmd = Get(<<{ "config:" <> key }:utf8>>)
-    let resp_val = execute(cmd, cache, get_time)
-    [BulkString(Some(<<key:utf8>>)), resp_val]
+  |> list.filter_map(fn(key) {
+    result.map(dict.get(config, key), fn(val) { [key, val] })
+  })
+  |> list.flatten
+  |> list.map(fn(str) {
+    str
+    |> bit_array.from_string
+    |> Some
+    |> BulkString
   })
   |> Array
 }
@@ -189,13 +180,7 @@ fn config_get(keys: List(String), cache: Cache, get_time: fn() -> Int) {
 fn keys(_pattern: String, cache: Cache) {
   cache
   |> cache.get_keys
-  |> list.filter(fn(k) {
-    case k {
-      <<"config:":utf8, _:bits>> -> False
-      _ -> True
-    }
-  })
-  |> list.map(fn(k) { BulkString(Some(k)) })
+  |> list.map(fn(key) { BulkString(Some(key)) })
   |> Array
 }
 

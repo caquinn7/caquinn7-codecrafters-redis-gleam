@@ -13,7 +13,7 @@ pub type Item {
 pub type Cache =
   EtsTable(BitArray, Item)
 
-pub fn init() -> Cache {
+pub fn new() -> Cache {
   let assert Ok(ets) =
     table.build(gluid.guidv4())
     |> table.privacy(table.Public)
@@ -39,7 +39,7 @@ pub fn get_keys(cache: Cache) -> List(BitArray) {
   get_all_keys(cache.table.name)
 }
 
-pub fn remove(cache: Cache, key: BitArray) {
+pub fn remove(cache: Cache, key: BitArray) -> Nil {
   table.delete(cache, key)
 }
 
@@ -55,7 +55,7 @@ pub fn from_rdb(rdb: Rdb) -> Cache {
       }
       #(rec.key, Item(rec.value, expiry))
     })
-  let cache = init()
+  let cache = new()
   table.insert(cache, items)
   cache
 }
