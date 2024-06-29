@@ -1,13 +1,12 @@
 import file_streams/file_stream_error.{Enoent}
-import gleam/io
 import gleam/option.{None, Some}
 import gleam/string
 import gleeunit
 import gleeunit/should
 import rdb.{
   type Rdb, AuxiliaryField, Database, EncodedStringExpected, Expiry,
-  InvalidStringTypeBits, LengthEncodedIntExpected, Milliseconds, NoMagicString,
-  Rdb, ReadFileError, Record, StringEncodedIntExpected,
+  InvalidStringTypeBits, LengthEncodedIntExpected, Milliseconds, Rdb,
+  ReadFileError, Record, StringEncodedIntExpected,
 }
 
 pub fn main() {
