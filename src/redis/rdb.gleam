@@ -1,4 +1,3 @@
-import binary_utils.{Big, Little}
 import file_streams/file_stream
 import file_streams/file_stream_error.{type FileStreamError}
 import gleam/bit_array
@@ -6,6 +5,7 @@ import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
+import redis/binary_utils.{Big, Little}
 
 pub type RdbError {
   ReadFileError(FileStreamError)

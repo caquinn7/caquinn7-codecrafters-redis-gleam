@@ -1,11 +1,11 @@
-import cache.{Item}
-import commands/commands.{ConfigGet, Echo, Get, Keys, Ping, Set}
 import gleam/dict
 import gleam/option.{None, Some}
 import gleeunit
 import gleeunit/should
-import resp.{Array, BulkString, SimpleString}
-import state.{State}
+import redis/cache.{Item}
+import redis/commands/commands.{ConfigGet, Echo, Get, Keys, Ping, Set}
+import redis/resp.{Array, BulkString, SimpleString}
+import redis/state.{State}
 
 pub fn main() {
   gleeunit.main()
@@ -33,6 +33,7 @@ pub fn execute_ping_test() {
 
 pub fn execute_set_test() {
   let cmd = Set(<<"foo":utf8>>, <<"bar":utf8>>, None)
+  // works locally w/out the assert but needed for codecrafters to compile
   let assert Set(key, val, _) = cmd
   let state = state.empty()
 

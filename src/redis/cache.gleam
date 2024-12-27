@@ -4,7 +4,7 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gluid
-import rdb.{type Rdb, Expiry, Milliseconds, Seconds}
+import redis/rdb.{type Rdb, Expiry, Milliseconds, Seconds}
 
 pub type Item {
   Item(value: BitArray, expires_at: Option(Int))

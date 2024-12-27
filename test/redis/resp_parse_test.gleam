@@ -2,7 +2,7 @@ import gleam/int
 import gleam/option.{None, Some}
 import gleeunit
 import gleeunit/should
-import resp.{
+import redis/resp.{
   Array, BulkString, InvalidUnicode, NotEnoughInput, Parsed, SimpleString,
   UnexpectedInput,
 }

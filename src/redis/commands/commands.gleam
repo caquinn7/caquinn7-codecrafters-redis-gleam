@@ -1,17 +1,17 @@
-import binary_utils
-import cache.{type Cache, type Item, Item}
-import commands/parse_error.{
-  type ParseError, InvalidArgument, InvalidCommand, NotImplemented, Null,
-  PostiveIntegerRequired, SyntaxError, WrongNumberOfArguments,
-}
 import gleam/bit_array
 import gleam/dict.{type Dict}
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
-import resp.{type RespType, Array, BulkString, Parsed, SimpleString}
-import state.{type State}
+import redis/binary_utils
+import redis/cache.{type Cache, type Item, Item}
+import redis/commands/parse_error.{
+  type ParseError, InvalidArgument, InvalidCommand, NotImplemented, Null,
+  PostiveIntegerRequired, SyntaxError, WrongNumberOfArguments,
+}
+import redis/resp.{type RespType, Array, BulkString, Parsed, SimpleString}
+import redis/state.{type State}
 
 pub type Command {
   Ping

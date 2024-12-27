@@ -3,7 +3,7 @@ import gleam/option.{None, Some}
 import gleam/string
 import gleeunit
 import gleeunit/should
-import rdb.{
+import redis/rdb.{
   type Rdb, AuxiliaryField, Database, EncodedStringExpected, Expiry,
   InvalidStringTypeBits, LengthEncodedIntExpected, Milliseconds, Rdb,
   ReadFileError, Record, StringEncodedIntExpected,
@@ -14,7 +14,7 @@ pub fn main() {
 }
 
 pub fn rdb_parse_file_not_found_test() {
-  "test/rdb/dumps.rdb"
+  "test/nonexistent.rdb"
   |> rdb.parse
   |> should.be_error
   |> should.equal(ReadFileError(Enoent))
@@ -33,7 +33,7 @@ pub fn rdb_parse_happy_path_test() {
   // 00000078
 
   // io.debug(
-  "test/rdb/dump.rdb"
+  "test/dump.rdb"
   |> rdb.parse
   |> should.be_ok
   // )

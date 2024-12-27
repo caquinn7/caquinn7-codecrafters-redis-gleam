@@ -1,9 +1,9 @@
-import commands/parse_error.{
+import gleeunit
+import gleeunit/should
+import redis/commands/parse_error.{
   InvalidArgument, InvalidCommand, Null, PostiveIntegerRequired, SyntaxError,
   WrongNumberOfArguments,
 }
-import gleeunit
-import gleeunit/should
 
 pub fn main() {
   gleeunit.main()

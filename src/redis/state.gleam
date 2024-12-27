@@ -1,5 +1,5 @@
-import cache.{type Cache}
 import gleam/dict.{type Dict}
+import redis/cache.{type Cache}
 
 pub type State {
   State(config: Dict(String, String), cache: Cache)

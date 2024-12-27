@@ -1,6 +1,6 @@
-import binary_utils.{Big, Little}
 import gleeunit
 import gleeunit/should
+import redis/binary_utils.{Big, Little}
 
 pub fn main() {
   gleeunit.main()

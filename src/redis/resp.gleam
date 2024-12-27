@@ -87,7 +87,7 @@ fn parse_array_elements(
         }
       })
       |> result.try(fn(parsed) {
-        let assert Parsed(element, remaining) = parsed
+        let Parsed(element, remaining) = parsed
         parse_array_elements(remaining, [element, ..elements], expected_len - 1)
       })
     }

@@ -1,9 +1,9 @@
-import cache.{Item}
 import gleam/list
 import gleam/option.{None, Some}
 import gleeunit
 import gleeunit/should
-import rdb.{Database, Expiry, Milliseconds, Rdb, Record, Seconds}
+import redis/cache.{Item}
+import redis/rdb.{Database, Expiry, Milliseconds, Rdb, Record, Seconds}
 
 pub fn main() {
   gleeunit.main()

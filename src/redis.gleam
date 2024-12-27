@@ -1,7 +1,4 @@
 import argv
-import cache.{type Cache}
-import commands/commands
-import commands/parse_error
 import gleam/bytes_builder
 import gleam/dict.{type Dict}
 import gleam/erlang/process
@@ -12,10 +9,13 @@ import gleam/otp/actor
 import gleam/result
 import gleam/string
 import glisten.{Packet}
-import rdb
-import resp.{SimpleError}
-import state.{type State, State}
-import time
+import redis/cache.{type Cache}
+import redis/commands/commands
+import redis/commands/parse_error
+import redis/rdb
+import redis/resp.{SimpleError}
+import redis/state.{type State, State}
+import redis/time
 
 pub fn main() {
   let config = args_to_dict(argv.load().arguments)

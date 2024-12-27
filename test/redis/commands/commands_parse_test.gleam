@@ -1,13 +1,13 @@
-import commands/commands.{ConfigGet, Echo, Get, Keys, Ping, Set}
-import commands/parse_error.{
-  InvalidArgument, InvalidCommand, Null, PostiveIntegerRequired, SyntaxError,
-  WrongNumberOfArguments,
-}
 import gleam/int
 import gleam/option.{None, Some}
 import gleeunit
 import gleeunit/should
-import resp.{Array, BulkString}
+import redis/commands/commands.{ConfigGet, Echo, Get, Keys, Ping, Set}
+import redis/commands/parse_error.{
+  InvalidArgument, InvalidCommand, Null, PostiveIntegerRequired, SyntaxError,
+  WrongNumberOfArguments,
+}
+import redis/resp.{Array, BulkString}
 
 pub fn main() {
   gleeunit.main()
